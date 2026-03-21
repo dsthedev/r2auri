@@ -58,7 +58,24 @@ export function ProfileCompare({ profiles }: { profiles: string[] }) {
         const same = inBoth.filter(
             (m) => versionStr(m.versionNumber) === versionStr(mapB.get(m.name)!.versionNumber)
         );
-        return { onlyInA, onlyInB, diffs, bVersionsForDiffs, same };
+        const enabledStateDiffs = inBoth.filter(
+            (m) => m.enabled !== (mapB.get(m.name)?.enabled ?? m.enabled)
+        );
+        const enabledStateLabels = new Map(
+            enabledStateDiffs.map((m) => {
+                const bEnabled = mapB.get(m.name)?.enabled ?? false;
+                return [m.name, `A:${m.enabled ? "on" : "off"} -> B:${bEnabled ? "on" : "off"}`];
+            })
+        );
+        return {
+            onlyInA,
+            onlyInB,
+            diffs,
+            bVersionsForDiffs,
+            same,
+            enabledStateDiffs,
+            enabledStateLabels,
+        };
     }, [modsA, modsB]);
 
     const loading = loadingA || loadingB;
@@ -70,6 +87,7 @@ export function ProfileCompare({ profiles }: { profiles: string[] }) {
         { label: "only in A", value: cmp.onlyInA.length, color: "text-blue-400" },
         { label: "only in B", value: cmp.onlyInB.length, color: "text-orange-400" },
         { label: "ver. diffs", value: cmp.diffs.length, color: "text-primary" },
+        { label: "enabled diffs", value: cmp.enabledStateDiffs.length, color: "text-amber-400" },
         { label: "identical", value: cmp.same.length, color: "text-green-400" },
     ];
 
@@ -159,10 +177,19 @@ export function ProfileCompare({ profiles }: { profiles: string[] }) {
                             />
                         </div>
 
+                        {cmp.enabledStateDiffs.length > 0 && (
+                            <CompareSection
+                                title="Enabled-state differences"
+                                mods={cmp.enabledStateDiffs}
+                                accentClass="border-t-amber-500"
+                                rightLabelByName={cmp.enabledStateLabels}
+                            />
+                        )}
+
                         {cmp.same.length > 0 && (
                             <details className="group">
                                 <summary className="text-lg text-muted-foreground cursor-pointer hover:text-foreground transition-colors py-1 select-none">
-                                    Common mods ({cmp.same.length} identical)
+                                    Common mods ({cmp.same.length})
                                 </summary>
                                 <div className="mt-2">
                                     <CompareSection

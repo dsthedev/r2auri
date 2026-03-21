@@ -11,6 +11,7 @@ interface CompareSectionProps {
     mods: ModEntry[];
     accentClass: string;
     bVersions?: Map<string, string>;
+    rightLabelByName?: Map<string, string>;
 }
 
 export function CompareSection({
@@ -18,6 +19,7 @@ export function CompareSection({
     mods,
     accentClass,
     bVersions,
+       rightLabelByName,
 }: CompareSectionProps) {
     if (mods.length === 0) return null;
 
@@ -34,7 +36,7 @@ export function CompareSection({
                     {mods.length}
                 </Badge>
             </div>
-            <ScrollArea className="max-h-72">
+            <ScrollArea className="max-h-72 overflow-y-scroll">
                 <div className="flex flex-col divide-y divide-border">
                     {mods.map((mod) => (
                         <div key={mod.name} className="flex items-center gap-2 px-3 py-1.5">
@@ -46,7 +48,9 @@ export function CompareSection({
                                 <span className="text-sm text-muted-foreground">{mod.authorName}</span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0 font-mono text-muted-foreground">
-                                {bVersions ? (
+                                    {rightLabelByName ? (
+                                        <span className="text-amber-300">{rightLabelByName.get(mod.name)}</span>
+                                    ) : bVersions ? (
                                     <>
                                         <span className="text-blue-400">v{versionStr(mod.versionNumber)}</span>
                                         <span>→</span>

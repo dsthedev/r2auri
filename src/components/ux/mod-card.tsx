@@ -12,16 +12,25 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 import type { ModEntry } from "./types";
-import { versionStr } from "./types";
+import { parseDependencyRef, versionStr } from "./types";
 
 interface ModCardProps {
     mod: ModEntry;
     selected?: boolean;
     open: boolean;
+    installedPackageNames?: Set<string>;
     onOpenChange: (mod: ModEntry, open: boolean) => void;
 }
 
-export function ModCard({ mod, selected, open, onOpenChange }: ModCardProps) {
+export function ModCard({
+    mod,
+    selected,
+    open,
+    installedPackageNames,
+    onOpenChange,
+}: ModCardProps) {
+    const optionalDeps = mod.optionalDependencies ?? [];
+
     return (
         <Collapsible open={open} onOpenChange={(nextOpen) => onOpenChange(mod, nextOpen)}>
             <Card
@@ -85,6 +94,26 @@ export function ModCard({ mod, selected, open, onOpenChange }: ModCardProps) {
                                             {d}
                                         </Badge>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+                        {optionalDeps.length > 0 && (
+                            <div className="space-y-1">
+                                <p className="text-[13px] font-medium text-foreground/80">Optional add-ons</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {optionalDeps.map((dep) => {
+                                        const ref = parseDependencyRef(dep);
+                                        const installed = installedPackageNames?.has(ref.packageName) ?? false;
+                                        return (
+                                            <Badge
+                                                key={dep}
+                                                variant={installed ? "default" : "secondary"}
+                                                className="text-[9px] font-mono px-1.5 h-4 leading-none"
+                                            >
+                                                {installed ? "+" : "-"} {ref.packageName}
+                                            </Badge>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
