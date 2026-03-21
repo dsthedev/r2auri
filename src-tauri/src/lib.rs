@@ -107,6 +107,75 @@ fn resolve_profile_icon(home: &str, profile: &str, mod_entry: &ModEntry) -> Opti
     None
 }
 
+fn find_first_file_case_insensitive(dir: &Path, names: &[&str]) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let file_name = path.file_name()?.to_str()?.to_ascii_lowercase();
+        for name in names {
+            if file_name == name.to_ascii_lowercase() {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+fn read_app_readme() -> Result<String, String> {
+    let app_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| "Unable to resolve app root path".to_string())?
+        .to_path_buf();
+    let readme_path = app_root.join("README.md");
+    std::fs::read_to_string(readme_path).map_err(|e| e.to_string())
+}
+
+fn read_mod_readme(home: &str, profile: &str, mod_name: &str) -> Result<String, String> {
+    let mods_path = format!(
+        "{}/.config/r2modmanPlus-local/Valheim/profiles/{}/mods.yml",
+        home, profile
+    );
+    let content = std::fs::read_to_string(&mods_path).map_err(|e| e.to_string())?;
+    let mods: Vec<ModEntry> = serde_yaml::from_str(&content).map_err(|e| e.to_string())?;
+    let mod_entry = mods
+        .iter()
+        .find(|m| m.name == mod_name)
+        .ok_or_else(|| format!("Mod not found in profile: {}", mod_name))?;
+
+    let plugins_root = PathBuf::from(format!(
+        "{}/.config/r2modmanPlus-local/Valheim/profiles/{}/BepInEx/plugins",
+        home, profile
+    ));
+
+    for folder in package_folder_candidates(mod_entry) {
+        let package_dir = plugins_root.join(folder);
+        if !package_dir.exists() || !package_dir.is_dir() {
+            continue;
+        }
+
+        if let Some(readme_path) = find_first_file_case_insensitive(
+            &package_dir,
+            &["README.md", "README.txt", "README"],
+        ) {
+            return std::fs::read_to_string(readme_path).map_err(|e| e.to_string());
+        }
+
+        if let Some(changelog_path) =
+            find_first_file_case_insensitive(&package_dir, &["CHANGELOG.md", "CHANGELOG"])
+        {
+            return std::fs::read_to_string(changelog_path).map_err(|e| e.to_string());
+        }
+    }
+
+    Err(format!(
+        "README not found for mod '{}' in profile '{}'",
+        mod_name, profile
+    ))
+}
+
 #[tauri::command]
 fn list_profiles() -> Result<Vec<String>, String> {
     let base_path = std::env::var("HOME")
@@ -157,12 +226,28 @@ fn get_profile_mods(profile: String) -> Result<Vec<ModEntry>, String> {
     Ok(mods)
 }
 
+#[tauri::command]
+fn get_app_readme() -> Result<String, String> {
+    read_app_readme()
+}
+
+#[tauri::command]
+fn get_mod_readme(profile: String, mod_name: String) -> Result<String, String> {
+    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    read_mod_readme(&home, &profile, &mod_name)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![list_profiles, get_profile_mods])
+        .invoke_handler(tauri::generate_handler![
+            list_profiles,
+            get_profile_mods,
+            get_app_readme,
+            get_mod_readme
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
