@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ function ModCard({ mod }: { mod: ModEntry }) {
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              open(mod.websiteUrl);
+              openUrl(mod.websiteUrl);
             }}
           >
             View on Thunderstore ↗
@@ -407,21 +407,6 @@ function App() {
         )}
       </main>
     </div>
-  );
-}
-
-export default App;
-
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
   );
 }
 
