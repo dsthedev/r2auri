@@ -38,20 +38,52 @@ impl Default for TailSessionRegistry {
     }
 }
 
+/// Get a paginated chunk of log lines. Loads from the END of the file (most recent first).
+/// offset=0 gets the most recent lines, offset=500 skips the first 500 recent lines, etc.
 pub fn get_profile_log_snapshot(base_path: &Path, profile: &str) -> Result<ProfileLogSnapshot, String> {
+    get_profile_log_snapshot_paginated(base_path, profile, 0, 500)
+}
+
+/// Get a paginated chunk of log lines.
+/// offset: number of recent lines to skip (0 = most recent)
+/// limit: number of lines to return (default 500 for performance)
+pub fn get_profile_log_snapshot_paginated(
+    base_path: &Path,
+    profile: &str,
+    offset: usize,
+    limit: usize,
+) -> Result<ProfileLogSnapshot, String> {
     let log_path = resolve_profile_log_path(base_path, profile)?;
     let file = File::open(&log_path).map_err(|e| e.to_string())?;
     let reader = BufReader::new(file);
 
-    let mut lines = Vec::new();
-    for (index, line) in reader.lines().enumerate() {
+    // First pass: count total lines and collect them in reverse
+    let mut all_lines: Vec<String> = Vec::new();
+    for line in reader.lines() {
         let raw = line.map_err(|e| e.to_string())?;
-        lines.push(parse_log_line(index + 1, &raw));
+        all_lines.push(raw);
+    }
+
+    let total_lines = all_lines.len();
+    
+    // Reverse to get most recent lines first
+    all_lines.reverse();
+    
+    let start = offset.min(all_lines.len());
+    let end = (start + limit).min(all_lines.len());
+    let chunk = &all_lines[start..end];
+
+    // Parse only the chunk we need
+    let mut lines = Vec::new();
+    for (i, raw_line) in chunk.iter().enumerate() {
+        // Adjust line number: account for offset and reversal
+        let actual_line_number = total_lines - (offset + i);
+        lines.push(parse_log_line(actual_line_number, raw_line));
     }
 
     Ok(ProfileLogSnapshot {
         path: log_path.to_string_lossy().to_string(),
-        total_lines: lines.len(),
+        total_lines,
         lines,
     })
 }
