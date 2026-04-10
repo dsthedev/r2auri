@@ -64,6 +64,15 @@ interface SmartPatternCard {
   example: string;
 }
 
+interface LogFilterState {
+  sourceFilter: string;
+  searchQuery: string;
+  focusedLevel: string | null;
+  hiddenLevels: string[];
+  hiddenPatternIds: SmartPatternId[];
+  focusedPatternId: SmartPatternId | null;
+}
+
 export function ProfileLogView({
   modsPath,
   profile,
@@ -84,18 +93,19 @@ export function ProfileLogView({
   const [tailError, setTailError] = useState<string | null>(null);
   const [tailShell, setTailShell] = useState("");
   const [tailCommand, setTailCommand] = useState("");
-  const [focusedLevel, setFocusedLevel] = useState<string | null>(null);
-  const [hiddenLevels, setHiddenLevels] = useState<string[]>([]);
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [hiddenPatternIds, setHiddenPatternIds] = useState<SmartPatternId[]>([]);
-  const [focusedPatternId, setFocusedPatternId] = useState<SmartPatternId | null>(null);
+  const [filterState, setFilterState] = useState<LogFilterState>(
+    createDefaultFilterState(),
+  );
 
   const tailSessionIdRef = useRef<string | null>(null);
   const tailPollInFlightRef = useRef(false);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const tailViewportRef = useRef<HTMLDivElement | null>(null);
   const tailAutoScrollPauseUntilRef = useRef(0);
+  const filterStorageKey = useMemo(
+    () => getLogFilterStorageKey(modsPath, profile),
+    [modsPath, profile],
+  );
 
   useEffect(() => {
     return () => {
@@ -110,15 +120,14 @@ export function ProfileLogView({
     setTailLines([]);
     setTailError(null);
     setTailStatus("idle");
-    setFocusedLevel(null);
-    setHiddenLevels([]);
-    setSourceFilter("all");
-    setSearchQuery("");
-    setHiddenPatternIds([]);
-    setFocusedPatternId(null);
+    setFilterState(loadFilterState(filterStorageKey));
     void stopTailSession();
     void loadSnapshot();
-  }, [modsPath, profile]);
+  }, [modsPath, profile, filterStorageKey]);
+
+  useEffect(() => {
+    saveFilterState(filterStorageKey, filterState);
+  }, [filterStorageKey, filterState]);
 
   useEffect(() => {
     if (openSection !== "tail" && tailEnabled) {
@@ -234,28 +243,34 @@ export function ProfileLogView({
     }
   }, [tailEnabled, tailLines]);
 
-  const searchNeedle = searchQuery.trim().toLowerCase();
+  const searchNeedle = filterState.searchQuery.trim().toLowerCase();
 
   const lines = snapshot?.lines ?? [];
 
   const smartPatternAnalysis = useMemo(() => analyzeSmartPatterns(lines), [lines]);
 
   const patternFilteredLines = useMemo(() => {
+    const focusedPatternId = filterState.focusedPatternId;
+
     if (focusedPatternId) {
       return lines.filter((line) =>
-        smartPatternAnalysis.linePatternMap.get(line.lineNumber)?.has(focusedPatternId),
+        smartPatternAnalysis.linePatternMap
+          .get(line.lineNumber)
+          ?.has(focusedPatternId),
       );
     }
 
-    if (hiddenPatternIds.length === 0) return lines;
+    if (filterState.hiddenPatternIds.length === 0) return lines;
 
     return lines.filter((line) => {
       const patternIds = smartPatternAnalysis.linePatternMap.get(line.lineNumber);
       if (!patternIds) return true;
 
-      return !hiddenPatternIds.some((patternId) => patternIds.has(patternId));
+      return !filterState.hiddenPatternIds.some((patternId) =>
+        patternIds.has(patternId),
+      );
     });
-  }, [focusedPatternId, hiddenPatternIds, lines, smartPatternAnalysis.linePatternMap]);
+  }, [filterState.focusedPatternId, filterState.hiddenPatternIds, lines, smartPatternAnalysis.linePatternMap]);
 
   const searchFilteredLines = useMemo(() => {
     if (!searchNeedle) return patternFilteredLines;
@@ -267,34 +282,36 @@ export function ProfileLogView({
   }, [patternFilteredLines, searchNeedle]);
 
   const sourceAwareLines = useMemo(() => {
-    if (sourceFilter === "all") return searchFilteredLines;
+    if (filterState.sourceFilter === "all") return searchFilteredLines;
     return searchFilteredLines.filter(
-      (line) => getSourceKey(line.source) === sourceFilter,
+      (line) => getSourceKey(line.source) === filterState.sourceFilter,
     );
-  }, [searchFilteredLines, sourceFilter]);
+  }, [searchFilteredLines, filterState.sourceFilter]);
 
   const levelSmartLines = useMemo(() => {
     let next = searchFilteredLines;
 
-    if (focusedLevel) {
-      next = next.filter((line) => getLevelKey(line.level) === focusedLevel);
+    if (filterState.focusedLevel) {
+      next = next.filter(
+        (line) => getLevelKey(line.level) === filterState.focusedLevel,
+      );
     }
 
-    if (hiddenLevels.length > 0) {
+    if (filterState.hiddenLevels.length > 0) {
       next = next.filter(
-        (line) => !hiddenLevels.includes(getLevelKey(line.level)),
+        (line) => !filterState.hiddenLevels.includes(getLevelKey(line.level)),
       );
     }
 
     return next;
-  }, [searchFilteredLines, focusedLevel, hiddenLevels]);
+  }, [searchFilteredLines, filterState.focusedLevel, filterState.hiddenLevels]);
 
   const filteredLines = useMemo(() => {
-    if (sourceFilter === "all") return levelSmartLines;
+    if (filterState.sourceFilter === "all") return levelSmartLines;
     return levelSmartLines.filter(
-      (line) => getSourceKey(line.source) === sourceFilter,
+      (line) => getSourceKey(line.source) === filterState.sourceFilter,
     );
-  }, [levelSmartLines, sourceFilter]);
+  }, [levelSmartLines, filterState.sourceFilter]);
 
   const levelCounts = useMemo(
     () => makeCountEntries(sourceAwareLines, (line) => getLevelKey(line.level)),
@@ -390,51 +407,77 @@ export function ProfileLogView({
   };
 
   const toggleHiddenPattern = (patternId: SmartPatternId) => {
-    setFocusedPatternId((current) => (current === patternId ? null : current));
-    setHiddenPatternIds((current) =>
-      current.includes(patternId)
-        ? current.filter((id) => id !== patternId)
-        : [...current, patternId],
-    );
+    setFilterState((current) => ({
+      ...current,
+      focusedPatternId:
+        current.focusedPatternId === patternId ? null : current.focusedPatternId,
+      hiddenPatternIds: current.hiddenPatternIds.includes(patternId)
+        ? current.hiddenPatternIds.filter((id) => id !== patternId)
+        : [...current.hiddenPatternIds, patternId],
+    }));
   };
 
   const focusPattern = (patternId: SmartPatternId) => {
-    setHiddenPatternIds((current) => current.filter((id) => id !== patternId));
-    setFocusedPatternId((current) => (current === patternId ? null : patternId));
+    setFilterState((current) => ({
+      ...current,
+      hiddenPatternIds: current.hiddenPatternIds.filter((id) => id !== patternId),
+      focusedPatternId:
+        current.focusedPatternId === patternId ? null : patternId,
+    }));
   };
 
   const clearSmartFilters = () => {
-    setHiddenPatternIds([]);
-    setFocusedPatternId(null);
-    setFocusedLevel(null);
-    setHiddenLevels([]);
+    setFilterState((current) => ({
+      ...current,
+      hiddenPatternIds: [],
+      focusedPatternId: null,
+      focusedLevel: null,
+      hiddenLevels: [],
+    }));
   };
 
   const hideAllSmartPatterns = () => {
-    setFocusedPatternId(null);
-    setHiddenPatternIds(smartPatternAnalysis.patterns.map((pattern) => pattern.id));
+    setFilterState((current) => ({
+      ...current,
+      focusedPatternId: null,
+      hiddenPatternIds: smartPatternAnalysis.patterns.map(
+        (pattern) => pattern.id,
+      ),
+    }));
   };
 
   const cycleLevelFilter = (level: string) => {
-    if (focusedLevel === level) {
-      setFocusedLevel(null);
-      setHiddenLevels((current) =>
-        current.includes(level) ? current : [...current, level],
-      );
-      return;
-    }
+    setFilterState((current) => {
+      if (current.focusedLevel === level) {
+        return {
+          ...current,
+          focusedLevel: null,
+          hiddenLevels: current.hiddenLevels.includes(level)
+            ? current.hiddenLevels
+            : [...current.hiddenLevels, level],
+        };
+      }
 
-    if (hiddenLevels.includes(level)) {
-      setHiddenLevels((current) => current.filter((item) => item !== level));
-      return;
-    }
+      if (current.hiddenLevels.includes(level)) {
+        return {
+          ...current,
+          hiddenLevels: current.hiddenLevels.filter((item) => item !== level),
+        };
+      }
 
-    setFocusedLevel(level);
+      return {
+        ...current,
+        focusedLevel: level,
+      };
+    });
   };
 
   const clearLevelSmartFilters = () => {
-    setFocusedLevel(null);
-    setHiddenLevels([]);
+    setFilterState((current) => ({
+      ...current,
+      focusedLevel: null,
+      hiddenLevels: [],
+    }));
   };
 
   return (
@@ -558,7 +601,8 @@ export function ProfileLogView({
                   <ArrowsClockwise size={14} />
                   Reload Table
                 </Button>
-                {(hiddenPatternIds.length > 0 || focusedPatternId) && (
+                {(filterState.hiddenPatternIds.length > 0 ||
+                  filterState.focusedPatternId) && (
                   <Button
                     type="button"
                     variant="outline"
@@ -569,7 +613,8 @@ export function ProfileLogView({
                   </Button>
                 )}
                 {smartPatternAnalysis.patterns.length > 0 &&
-                  hiddenPatternIds.length < smartPatternAnalysis.patterns.length && (
+                  filterState.hiddenPatternIds.length <
+                    smartPatternAnalysis.patterns.length && (
                     <Button
                       type="button"
                       variant="outline"
@@ -585,8 +630,8 @@ export function ProfileLogView({
             {smartPatternAnalysis.patterns.length > 0 && (
               <div className="grid gap-3 xl:grid-cols-2">
                 {smartPatternAnalysis.patterns.map((pattern) => {
-                  const isHidden = hiddenPatternIds.includes(pattern.id);
-                  const isFocused = focusedPatternId === pattern.id;
+                  const isHidden = filterState.hiddenPatternIds.includes(pattern.id);
+                  const isFocused = filterState.focusedPatternId === pattern.id;
 
                   return (
                     <div
@@ -650,8 +695,13 @@ export function ProfileLogView({
                     className="pointer-events-none absolute top-2.5 left-2.5 text-muted-foreground"
                   />
                   <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
+                    value={filterState.searchQuery}
+                    onChange={(event) =>
+                      setFilterState((current) => ({
+                        ...current,
+                        searchQuery: event.target.value,
+                      }))
+                    }
                     placeholder="Search messages, mod names, file paths, or sources"
                     className="pl-8"
                   />
@@ -663,8 +713,13 @@ export function ProfileLogView({
                   Source
                 </span>
                 <Select
-                  value={sourceFilter}
-                  onValueChange={(value) => setSourceFilter(value ?? "all")}
+                  value={filterState.sourceFilter}
+                  onValueChange={(value) =>
+                    setFilterState((current) => ({
+                      ...current,
+                      sourceFilter: value ?? "all",
+                    }))
+                  }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="All sources" />
@@ -692,9 +747,9 @@ export function ProfileLogView({
                   <LevelSmartFilterButton
                     key={level}
                     mode={
-                      focusedLevel === level
+                      filterState.focusedLevel === level
                         ? "focused"
-                        : hiddenLevels.includes(level)
+                        : filterState.hiddenLevels.includes(level)
                           ? "hidden"
                           : "default"
                     }
@@ -703,7 +758,8 @@ export function ProfileLogView({
                     onClick={() => cycleLevelFilter(level)}
                   />
                 ))}
-                {(focusedLevel !== null || hiddenLevels.length > 0) && (
+                {(filterState.focusedLevel !== null ||
+                  filterState.hiddenLevels.length > 0) && (
                   <Button
                     type="button"
                     variant="outline"
@@ -716,17 +772,26 @@ export function ProfileLogView({
               </div>
             </div>
 
-            {(hiddenPatternIds.length > 0 || focusedPatternId || focusedLevel !== null || hiddenLevels.length > 0) && (
+            {(filterState.hiddenPatternIds.length > 0 ||
+              filterState.focusedPatternId ||
+              filterState.focusedLevel !== null ||
+              filterState.hiddenLevels.length > 0) && (
               <div className="flex flex-wrap items-center gap-2 border border-border/70 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
                 <span>Smart filters:</span>
-                {focusedPatternId && <Badge>focused {formatPatternLabel(focusedPatternId)}</Badge>}
-                {hiddenPatternIds.map((patternId) => (
+                {filterState.focusedPatternId && (
+                  <Badge>
+                    focused {formatPatternLabel(filterState.focusedPatternId)}
+                  </Badge>
+                )}
+                {filterState.hiddenPatternIds.map((patternId) => (
                   <Badge key={patternId} variant="outline">
                     hidden {formatPatternLabel(patternId)}
                   </Badge>
                 ))}
-                {focusedLevel && <Badge>focused level {focusedLevel}</Badge>}
-                {hiddenLevels.map((level) => (
+                {filterState.focusedLevel && (
+                  <Badge>focused level {filterState.focusedLevel}</Badge>
+                )}
+                {filterState.hiddenLevels.map((level) => (
                   <Badge key={level} variant="outline">
                     hidden level {level}
                   </Badge>
@@ -748,7 +813,7 @@ export function ProfileLogView({
               </span>
               <span>
                 Search: {searchNeedle ? "active" : "off"} | Source:{" "}
-                {formatSourceLabel(sourceFilter)} | Levels: {formatLevelSmartState(focusedLevel, hiddenLevels)}
+                {formatSourceLabel(filterState.sourceFilter)} | Levels: {formatLevelSmartState(filterState.focusedLevel, filterState.hiddenLevels)}
               </span>
             </div>
           </div>
@@ -1039,6 +1104,10 @@ const SMART_PATTERN_METADATA: Array<{
   },
 ];
 
+const SMART_PATTERN_ID_SET = new Set<SmartPatternId>(
+  SMART_PATTERN_METADATA.map((pattern) => pattern.id),
+);
+
 function truncateForCard(text: string) {
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 }
@@ -1053,6 +1122,86 @@ function formatLevelSmartState(focusedLevel: string | null, hiddenLevels: string
   if (focusedLevel) return `focused(${focusedLevel})`;
   if (hiddenLevels.length > 0) return `hidden(${hiddenLevels.join(",")})`;
   return "all";
+}
+
+function createDefaultFilterState(): LogFilterState {
+  return {
+    sourceFilter: "all",
+    searchQuery: "",
+    focusedLevel: null,
+    hiddenLevels: [],
+    hiddenPatternIds: [],
+    focusedPatternId: null,
+  };
+}
+
+function getLogFilterStorageKey(modsPath: string, profile: string) {
+  return `r2auri:log-filter-state:${modsPath}:${profile}`;
+}
+
+function loadFilterState(storageKey: string): LogFilterState {
+  const fallback = createDefaultFilterState();
+
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return fallback;
+
+    const parsed = JSON.parse(raw) as Partial<LogFilterState>;
+    const sourceFilter =
+      typeof parsed.sourceFilter === "string" && parsed.sourceFilter.trim()
+        ? parsed.sourceFilter
+        : "all";
+    const searchQuery =
+      typeof parsed.searchQuery === "string" ? parsed.searchQuery : "";
+    const focusedLevel =
+      typeof parsed.focusedLevel === "string" && parsed.focusedLevel.trim()
+        ? parsed.focusedLevel
+        : null;
+    const hiddenLevels = Array.isArray(parsed.hiddenLevels)
+      ? parsed.hiddenLevels.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    const hiddenPatternIds = Array.isArray(parsed.hiddenPatternIds)
+      ? parsed.hiddenPatternIds.filter(
+          (value): value is SmartPatternId =>
+            typeof value === "string" &&
+            SMART_PATTERN_ID_SET.has(value as SmartPatternId),
+        )
+      : [];
+    const focusedPatternId =
+      typeof parsed.focusedPatternId === "string" &&
+      SMART_PATTERN_ID_SET.has(parsed.focusedPatternId as SmartPatternId)
+        ? (parsed.focusedPatternId as SmartPatternId)
+        : null;
+
+    return {
+      sourceFilter,
+      searchQuery,
+      focusedLevel,
+      hiddenLevels: [...new Set(hiddenLevels)],
+      hiddenPatternIds: [...new Set(hiddenPatternIds)],
+      focusedPatternId,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveFilterState(storageKey: string, filterState: LogFilterState) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(filterState));
+  } catch {
+    return;
+  }
 }
 
 function makeCountEntries<T>(items: T[], keyFn: (item: T) => string) {
