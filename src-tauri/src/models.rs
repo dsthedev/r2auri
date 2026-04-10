@@ -41,3 +41,36 @@ pub struct AppSettings {
     #[serde(default)]
     pub default_profile: String,
 }
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileLogLine {
+    pub line_number: usize,
+    pub raw: String,
+    pub level: String,
+    pub source: String,
+    pub message: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileLogSnapshot {
+    pub path: String,
+    pub total_lines: usize,
+    pub lines: Vec<ProfileLogLine>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TailSessionStart {
+    pub session_id: String,
+    pub shell: String,
+    pub command: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TailChunk {
+    pub lines: Vec<String>,
+    pub running: bool,
+}

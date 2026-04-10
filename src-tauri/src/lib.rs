@@ -1,4 +1,5 @@
 mod icon;
+mod log_output;
 mod models;
 mod profile;
 mod readme;
@@ -6,7 +7,8 @@ mod settings;
 mod utils;
 
 use std::path::PathBuf;
-use models::{AppSettings, ModEntry};
+use models::{AppSettings, ModEntry, ProfileLogSnapshot, TailChunk, TailSessionStart};
+use log_output::TailSessionRegistry;
 
 #[tauri::command]
 fn get_settings() -> Result<AppSettings, String> {
@@ -59,9 +61,42 @@ fn get_mod_readme(mods_path: String, profile: String, mod_name: String) -> Resul
     readme::read_mod_readme(&plugins_root, mod_entry)
 }
 
+#[tauri::command]
+fn get_profile_log_snapshot(mods_path: String, profile: String) -> Result<ProfileLogSnapshot, String> {
+    let base_path = PathBuf::from(&mods_path);
+    log_output::get_profile_log_snapshot(&base_path, &profile)
+}
+
+#[tauri::command]
+fn start_profile_log_tail(
+    state: tauri::State<'_, TailSessionRegistry>,
+    mods_path: String,
+    profile: String,
+) -> Result<TailSessionStart, String> {
+    let base_path = PathBuf::from(&mods_path);
+    log_output::start_tail_session(&base_path, &profile, state.inner())
+}
+
+#[tauri::command]
+fn read_profile_log_tail(
+    state: tauri::State<'_, TailSessionRegistry>,
+    session_id: String,
+) -> Result<TailChunk, String> {
+    log_output::read_tail_chunk(&session_id, state.inner())
+}
+
+#[tauri::command]
+fn stop_profile_log_tail(
+    state: tauri::State<'_, TailSessionRegistry>,
+    session_id: String,
+) -> Result<(), String> {
+    log_output::stop_tail_session(&session_id, state.inner())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(TailSessionRegistry::default())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -72,7 +107,11 @@ pub fn run() {
             list_profiles,
             get_profile_mods,
             get_app_readme,
-            get_mod_readme
+            get_mod_readme,
+            get_profile_log_snapshot,
+            start_profile_log_tail,
+            read_profile_log_tail,
+            stop_profile_log_tail
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
