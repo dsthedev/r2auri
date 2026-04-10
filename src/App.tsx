@@ -23,7 +23,7 @@ function AppContent() {
   };
 
   return (
-    <div className="relative h-screen flex flex-col bg-background text-foreground">
+    <div className="relative min-h-screen flex flex-col bg-background text-foreground overflow-auto">
       <Button
         type="button"
         size="sm"
@@ -60,7 +60,7 @@ function AppContent() {
         </nav>
       </header>
 
-      <main className="flex-1 overflow-hidden flex flex-col">
+      <main className="flex-1 overflow-auto flex flex-col">
         {currentPage === "profiles" && (
           <ProfilesPage
             onNavigateToSettings={() => setCurrentPage("settings")}

@@ -46,6 +46,23 @@ const TAIL_AUTO_SCROLL_PAUSE_MS = 4000;
 const TAIL_BOTTOM_THRESHOLD_PX = 24;
 
 type LogSection = "tail" | "snapshot" | null;
+type SmartPatternId =
+  | "shader-compiler-spam"
+  | "hookgen-reuse"
+  | "plugin-loading"
+  | "jotunn-init"
+  | "unity-localization-flood"
+  | "starlevel-localization-scan"
+  | "save-data-dump";
+
+interface SmartPatternCard {
+  id: SmartPatternId;
+  title: string;
+  description: string;
+  count: number;
+  firstLineNumber: number;
+  example: string;
+}
 
 export function ProfileLogView({
   modsPath,
@@ -67,9 +84,12 @@ export function ProfileLogView({
   const [tailError, setTailError] = useState<string | null>(null);
   const [tailShell, setTailShell] = useState("");
   const [tailCommand, setTailCommand] = useState("");
-  const [levelFilter, setLevelFilter] = useState("all");
+  const [focusedLevel, setFocusedLevel] = useState<string | null>(null);
+  const [hiddenLevels, setHiddenLevels] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [hiddenPatternIds, setHiddenPatternIds] = useState<SmartPatternId[]>([]);
+  const [focusedPatternId, setFocusedPatternId] = useState<SmartPatternId | null>(null);
 
   const tailSessionIdRef = useRef<string | null>(null);
   const tailPollInFlightRef = useRef(false);
@@ -90,9 +110,12 @@ export function ProfileLogView({
     setTailLines([]);
     setTailError(null);
     setTailStatus("idle");
-    setLevelFilter("all");
+    setFocusedLevel(null);
+    setHiddenLevels([]);
     setSourceFilter("all");
     setSearchQuery("");
+    setHiddenPatternIds([]);
+    setFocusedPatternId(null);
     void stopTailSession();
     void loadSnapshot();
   }, [modsPath, profile]);
@@ -215,14 +238,33 @@ export function ProfileLogView({
 
   const lines = snapshot?.lines ?? [];
 
-  const searchFilteredLines = useMemo(() => {
-    if (!searchNeedle) return lines;
+  const smartPatternAnalysis = useMemo(() => analyzeSmartPatterns(lines), [lines]);
+
+  const patternFilteredLines = useMemo(() => {
+    if (focusedPatternId) {
+      return lines.filter((line) =>
+        smartPatternAnalysis.linePatternMap.get(line.lineNumber)?.has(focusedPatternId),
+      );
+    }
+
+    if (hiddenPatternIds.length === 0) return lines;
 
     return lines.filter((line) => {
+      const patternIds = smartPatternAnalysis.linePatternMap.get(line.lineNumber);
+      if (!patternIds) return true;
+
+      return !hiddenPatternIds.some((patternId) => patternIds.has(patternId));
+    });
+  }, [focusedPatternId, hiddenPatternIds, lines, smartPatternAnalysis.linePatternMap]);
+
+  const searchFilteredLines = useMemo(() => {
+    if (!searchNeedle) return patternFilteredLines;
+
+    return patternFilteredLines.filter((line) => {
       const blob = `${line.raw}\n${line.source}\n${line.message}`.toLowerCase();
       return blob.includes(searchNeedle);
     });
-  }, [lines, searchNeedle]);
+  }, [patternFilteredLines, searchNeedle]);
 
   const sourceAwareLines = useMemo(() => {
     if (sourceFilter === "all") return searchFilteredLines;
@@ -231,22 +273,28 @@ export function ProfileLogView({
     );
   }, [searchFilteredLines, sourceFilter]);
 
-  const levelAwareLines = useMemo(() => {
-    if (levelFilter === "all") return searchFilteredLines;
-    return searchFilteredLines.filter(
-      (line) => getLevelKey(line.level) === levelFilter,
-    );
-  }, [searchFilteredLines, levelFilter]);
+  const levelSmartLines = useMemo(() => {
+    let next = searchFilteredLines;
+
+    if (focusedLevel) {
+      next = next.filter((line) => getLevelKey(line.level) === focusedLevel);
+    }
+
+    if (hiddenLevels.length > 0) {
+      next = next.filter(
+        (line) => !hiddenLevels.includes(getLevelKey(line.level)),
+      );
+    }
+
+    return next;
+  }, [searchFilteredLines, focusedLevel, hiddenLevels]);
 
   const filteredLines = useMemo(() => {
-    return searchFilteredLines.filter((line) => {
-      const levelMatches =
-        levelFilter === "all" || getLevelKey(line.level) === levelFilter;
-      const sourceMatches =
-        sourceFilter === "all" || getSourceKey(line.source) === sourceFilter;
-      return levelMatches && sourceMatches;
-    });
-  }, [searchFilteredLines, levelFilter, sourceFilter]);
+    if (sourceFilter === "all") return levelSmartLines;
+    return levelSmartLines.filter(
+      (line) => getSourceKey(line.source) === sourceFilter,
+    );
+  }, [levelSmartLines, sourceFilter]);
 
   const levelCounts = useMemo(
     () => makeCountEntries(sourceAwareLines, (line) => getLevelKey(line.level)),
@@ -254,8 +302,8 @@ export function ProfileLogView({
   );
   const sourceCounts = useMemo(
     () =>
-      makeCountEntries(levelAwareLines, (line) => getSourceKey(line.source)),
-    [levelAwareLines],
+      makeCountEntries(levelSmartLines, (line) => getSourceKey(line.source)),
+    [levelSmartLines],
   );
 
   const sourceOptions = useMemo(
@@ -339,6 +387,54 @@ export function ProfileLogView({
 
     tailAutoScrollPauseUntilRef.current =
       Date.now() + TAIL_AUTO_SCROLL_PAUSE_MS;
+  };
+
+  const toggleHiddenPattern = (patternId: SmartPatternId) => {
+    setFocusedPatternId((current) => (current === patternId ? null : current));
+    setHiddenPatternIds((current) =>
+      current.includes(patternId)
+        ? current.filter((id) => id !== patternId)
+        : [...current, patternId],
+    );
+  };
+
+  const focusPattern = (patternId: SmartPatternId) => {
+    setHiddenPatternIds((current) => current.filter((id) => id !== patternId));
+    setFocusedPatternId((current) => (current === patternId ? null : patternId));
+  };
+
+  const clearSmartFilters = () => {
+    setHiddenPatternIds([]);
+    setFocusedPatternId(null);
+    setFocusedLevel(null);
+    setHiddenLevels([]);
+  };
+
+  const hideAllSmartPatterns = () => {
+    setFocusedPatternId(null);
+    setHiddenPatternIds(smartPatternAnalysis.patterns.map((pattern) => pattern.id));
+  };
+
+  const cycleLevelFilter = (level: string) => {
+    if (focusedLevel === level) {
+      setFocusedLevel(null);
+      setHiddenLevels((current) =>
+        current.includes(level) ? current : [...current, level],
+      );
+      return;
+    }
+
+    if (hiddenLevels.includes(level)) {
+      setHiddenLevels((current) => current.filter((item) => item !== level));
+      return;
+    }
+
+    setFocusedLevel(level);
+  };
+
+  const clearLevelSmartFilters = () => {
+    setFocusedLevel(null);
+    setHiddenLevels([]);
   };
 
   return (
@@ -442,17 +538,106 @@ export function ProfileLogView({
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="space-y-4 border border-border/70 bg-background/40 p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => void loadSnapshot()}
-              >
-                <ArrowsClockwise size={14} />
-                Reload Table
-              </Button>
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Smart Patterns
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Repeated noise candidates detected from this log. Hide them to reduce junk, or focus one to inspect it directly.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => void loadSnapshot()}
+                >
+                  <ArrowsClockwise size={14} />
+                  Reload Table
+                </Button>
+                {(hiddenPatternIds.length > 0 || focusedPatternId) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSmartFilters}
+                  >
+                    Clear Smart Filters
+                  </Button>
+                )}
+                {smartPatternAnalysis.patterns.length > 0 &&
+                  hiddenPatternIds.length < smartPatternAnalysis.patterns.length && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={hideAllSmartPatterns}
+                    >
+                      Hide All
+                    </Button>
+                  )}
+              </div>
             </div>
+
+            {smartPatternAnalysis.patterns.length > 0 && (
+              <div className="grid gap-3 xl:grid-cols-2">
+                {smartPatternAnalysis.patterns.map((pattern) => {
+                  const isHidden = hiddenPatternIds.includes(pattern.id);
+                  const isFocused = focusedPatternId === pattern.id;
+
+                  return (
+                    <div
+                      key={pattern.id}
+                      className={`border p-3 transition-colors ${
+                        isFocused
+                          ? "border-primary bg-primary/10"
+                          : isHidden
+                            ? "border-border/70 bg-background/30 opacity-75"
+                            : "border-border/70 bg-background/50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-foreground">{pattern.title}</p>
+                            <Badge variant="outline">{pattern.count} lines</Badge>
+                            {isFocused && <Badge>focused</Badge>}
+                            {isHidden && <Badge variant="secondary">hidden</Badge>}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{pattern.description}</p>
+                        </div>
+
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            variant={isFocused ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => focusPattern(pattern.id)}
+                          >
+                            {isFocused ? "Show All" : "Only Show"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={isHidden ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => toggleHiddenPattern(pattern.id)}
+                          >
+                            {isHidden ? "Unhide" : "Hide"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 border border-border/60 bg-background/50 px-3 py-2 font-mono text-xs text-muted-foreground">
+                        [L{pattern.firstLineNumber}] {pattern.example}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
               <label className="space-y-2">
@@ -502,24 +687,52 @@ export function ProfileLogView({
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 Level
               </p>
-              <div className="flex flex-wrap gap-2">
-                <CountFilterButton
-                  active={levelFilter === "all"}
-                  label="all"
-                  count={sourceAwareLines.length}
-                  onClick={() => setLevelFilter("all")}
-                />
+              <div className="flex flex-wrap items-center gap-2">
                 {Array.from(levelCounts.entries()).map(([level, count]) => (
-                  <CountFilterButton
+                  <LevelSmartFilterButton
                     key={level}
-                    active={levelFilter === level}
+                    mode={
+                      focusedLevel === level
+                        ? "focused"
+                        : hiddenLevels.includes(level)
+                          ? "hidden"
+                          : "default"
+                    }
                     label={level}
                     count={count}
-                    onClick={() => setLevelFilter(level)}
+                    onClick={() => cycleLevelFilter(level)}
                   />
                 ))}
+                {(focusedLevel !== null || hiddenLevels.length > 0) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={clearLevelSmartFilters}
+                  >
+                    Show All Levels
+                  </Button>
+                )}
               </div>
             </div>
+
+            {(hiddenPatternIds.length > 0 || focusedPatternId || focusedLevel !== null || hiddenLevels.length > 0) && (
+              <div className="flex flex-wrap items-center gap-2 border border-border/70 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+                <span>Smart filters:</span>
+                {focusedPatternId && <Badge>focused {formatPatternLabel(focusedPatternId)}</Badge>}
+                {hiddenPatternIds.map((patternId) => (
+                  <Badge key={patternId} variant="outline">
+                    hidden {formatPatternLabel(patternId)}
+                  </Badge>
+                ))}
+                {focusedLevel && <Badge>focused level {focusedLevel}</Badge>}
+                {hiddenLevels.map((level) => (
+                  <Badge key={level} variant="outline">
+                    hidden level {level}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -535,7 +748,7 @@ export function ProfileLogView({
               </span>
               <span>
                 Search: {searchNeedle ? "active" : "off"} | Source:{" "}
-                {formatSourceLabel(sourceFilter)} | Level: {levelFilter}
+                {formatSourceLabel(sourceFilter)} | Levels: {formatLevelSmartState(focusedLevel, hiddenLevels)}
               </span>
             </div>
           </div>
@@ -655,13 +868,13 @@ function AccordionSection({
   );
 }
 
-function CountFilterButton({
-  active,
+function LevelSmartFilterButton({
+  mode,
   label,
   count,
   onClick,
 }: {
-  active: boolean;
+  mode: "default" | "focused" | "hidden";
   label: string;
   count: number;
   onClick: () => void;
@@ -671,15 +884,175 @@ function CountFilterButton({
       type="button"
       onClick={onClick}
       className={`inline-flex items-center gap-2 border px-2.5 py-1.5 text-sm transition-colors ${
-        active
+        mode === "focused"
           ? "border-primary bg-primary/10 text-foreground"
-          : "border-border/70 bg-background/40 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+          : mode === "hidden"
+            ? "border-border/70 bg-background/20 text-muted-foreground line-through opacity-80"
+            : "border-border/70 bg-background/40 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
       }`}
     >
       <span>{label}</span>
       <span className="font-mono text-xs text-muted-foreground">{count}</span>
+      {mode === "focused" && <span className="text-[10px] uppercase tracking-wide">focus</span>}
+      {mode === "hidden" && <span className="text-[10px] uppercase tracking-wide">hide</span>}
     </button>
   );
+}
+
+function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
+  const linePatternMap = new Map<number, Set<SmartPatternId>>();
+
+  const addMatch = (lineNumber: number, patternId: SmartPatternId) => {
+    const current = linePatternMap.get(lineNumber) ?? new Set<SmartPatternId>();
+    current.add(patternId);
+    linePatternMap.set(lineNumber, current);
+  };
+
+  let inSaveDataDump = false;
+
+  for (const line of lines) {
+    const raw = line.raw;
+    const message = line.message || line.raw;
+    const source = getSourceKey(line.source);
+
+    if (
+      message.includes("All files in local storage save data:") ||
+      message.includes("All files in platform save data:")
+    ) {
+      inSaveDataDump = true;
+      addMatch(line.lineNumber, "save-data-dump");
+    } else if (inSaveDataDump) {
+      if (raw.startsWith("[")) {
+        inSaveDataDump = false;
+      } else if (raw.trim()) {
+        addMatch(line.lineNumber, "save-data-dump");
+        continue;
+      }
+    }
+
+    if (source === "HookGenPatcher") {
+      if (
+        message.includes("Previous MMHOOK location found") ||
+        message.includes("Already ran for this version")
+      ) {
+        addMatch(line.lineNumber, "hookgen-reuse");
+      }
+    }
+
+    if (message.includes("Desired shader compiler platform 18 is not available in shader blob")) {
+      addMatch(line.lineNumber, "shader-compiler-spam");
+    }
+
+    if (source === "BepInEx" && message.startsWith("Loading [")) {
+      addMatch(line.lineNumber, "plugin-loading");
+    }
+
+    if (source === "Jotunn.Main" && message.startsWith("Initializing ")) {
+      addMatch(line.lineNumber, "jotunn-init");
+    }
+
+    if (source === "Unity Log" && /Loaded localization file #\d+/.test(message)) {
+      addMatch(line.lineNumber, "unity-localization-flood");
+    }
+
+    if (
+      source === "StarLevelSystem" &&
+      ((message.startsWith("Reading ") && message.includes("/localizations/")) ||
+        message.startsWith("Added localization:"))
+    ) {
+      addMatch(line.lineNumber, "starlevel-localization-scan");
+    }
+  }
+
+  const patterns = SMART_PATTERN_METADATA.flatMap((pattern) => {
+    const matchedLines = lines.filter((line) =>
+      linePatternMap.get(line.lineNumber)?.has(pattern.id),
+    );
+
+    if (matchedLines.length < pattern.minLinesToShow) {
+      return [];
+    }
+
+    const exampleLine = matchedLines[0];
+    return [
+      {
+        id: pattern.id,
+        title: pattern.title,
+        description: pattern.description,
+        count: matchedLines.length,
+        firstLineNumber: exampleLine.lineNumber,
+        example: truncateForCard(exampleLine.message || exampleLine.raw),
+      } satisfies SmartPatternCard,
+    ];
+  });
+
+  return { patterns, linePatternMap };
+}
+
+const SMART_PATTERN_METADATA: Array<{
+  id: SmartPatternId;
+  title: string;
+  description: string;
+  minLinesToShow: number;
+}> = [
+  {
+    id: "shader-compiler-spam",
+    title: "Repeated Shader Error Spam",
+    description: "Same Unity shader compiler error repeated enough times to drown out distinct failures.",
+    minLinesToShow: 3,
+  },
+  {
+    id: "hookgen-reuse",
+    title: "HookGen Reuse Chatter",
+    description: "MMHOOK reuse confirmations from HookGenPatcher. Useful once, noisy after that.",
+    minLinesToShow: 4,
+  },
+  {
+    id: "plugin-loading",
+    title: "Plugin Loading Flood",
+    description: "Standard BepInEx loading lines for each plugin during startup.",
+    minLinesToShow: 8,
+  },
+  {
+    id: "jotunn-init",
+    title: "Jotunn Init Sequence",
+    description: "Framework initialization steps that are often routine startup noise.",
+    minLinesToShow: 5,
+  },
+  {
+    id: "unity-localization-flood",
+    title: "Unity Localization Flood",
+    description: "Repeated localization file load confirmations from Unity Log.",
+    minLinesToShow: 4,
+  },
+  {
+    id: "starlevel-localization-scan",
+    title: "StarLevel Localization Scan",
+    description: "StarLevelSystem localization discovery and registration lines.",
+    minLinesToShow: 6,
+  },
+  {
+    id: "save-data-dump",
+    title: "Save Data Inventory Dump",
+    description: "Large block of local/platform save file listings that overwhelm the log table.",
+    minLinesToShow: 8,
+  },
+];
+
+function truncateForCard(text: string) {
+  return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+}
+
+function formatPatternLabel(patternId: SmartPatternId) {
+  return (
+    SMART_PATTERN_METADATA.find((pattern) => pattern.id === patternId)?.title ?? patternId
+  );
+}
+
+function formatLevelSmartState(focusedLevel: string | null, hiddenLevels: string[]) {
+  if (focusedLevel) return `focused(${focusedLevel})`;
+  if (hiddenLevels.length > 0) return `hidden(${hiddenLevels.join(",")})`;
+  return "all";
 }
 
 function makeCountEntries<T>(items: T[], keyFn: (item: T) => string) {
