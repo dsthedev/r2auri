@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSettings } from "@/hooks/use-settings";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,8 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DEFAULT_SMART_PATTERNS } from "@/types/smart-patterns";
-import type { SmartPatternMetadata } from "@/types/smart-patterns";
+import { SmartPatternSettings } from "@/components/ux/smart-pattern-settings";
+import { DEFAULT_SMART_PATTERNS, SmartPatternMetadata } from "@/types/smart-patterns";
+import { mergePatterns } from "@/lib/pattern-manager";
 
 export function SettingsPage() {
   const { settings, updateSettings, error: contextError } = useSettings();
@@ -27,7 +29,16 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [smartPatterns, setSmartPatterns] = useState<SmartPatternMetadata[]>(DEFAULT_SMART_PATTERNS);
+  const [allPatterns, setAllPatterns] = useState<SmartPatternMetadata[]>(
+    mergePatterns(settings?.custom_smart_patterns)
+  );
+
+  // Update patterns when settings load
+  useEffect(() => {
+    if (settings) {
+      setAllPatterns(mergePatterns(settings.custom_smart_patterns));
+    }
+  }, [settings?.custom_smart_patterns]);
 
   // Fetch the expanded default path on mount
   useEffect(() => {
@@ -87,9 +98,14 @@ export function SettingsPage() {
         return;
       }
 
+      // Extract only custom patterns (those not in DEFAULT_SMART_PATTERNS)
+      const defaultIds = new Set(DEFAULT_SMART_PATTERNS.map(p => p.id));
+      const customPatterns = allPatterns.filter(p => !defaultIds.has(p.id));
+
       await updateSettings({
         valheim_mods_path: modsPath,
         default_profile: defaultProfile,
+        custom_smart_patterns: customPatterns.length > 0 ? customPatterns : undefined,
       });
 
       setSuccess(true);
@@ -103,11 +119,11 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="flex-1 overflow-auto px-5 py-3 flex flex-col max-w-2xl w-full mx-auto">
+    <div className="flex-1 overflow-auto px-5 py-3 flex flex-col w-full">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground mb-2">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Configure the location of your Valheim mod profiles
+          Configure r2auri behavior
         </p>
       </div>
 
@@ -129,110 +145,98 @@ export function SettingsPage() {
         </Card>
       )}
 
-      <div className="space-y-4">
-        <div className="border-l-4 border-l-roygbiv-blue bg-roygbiv-blue-muted p-3 rounded-none">
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Valheim Mods Path
-          </label>
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              value={modsPath}
-              onChange={(e) => setModsPath(e.target.value)}
-              placeholder="/home/username/.config/r2modmanPlus-local/Valheim/profiles"
-              className="flex-1"
-            />
-            <Button variant="outline" onClick={handleBrowse}>
-              Browse
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleReset}
-              disabled={modsPath === defaultPath || !defaultPath}
-            >
-              Reset
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            This should point to your r2modman Valheim profiles directory
-          </p>
-        </div>
+      <Tabs defaultValue="general" className="flex-1 flex flex-col">
+        <TabsList className="w-full">
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="patterns">Smart Patterns</TabsTrigger>
+        </TabsList>
 
-        <div className="border-l-4 border-l-roygbiv-violet bg-roygbiv-violet-muted p-3 rounded-none">
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Default Profile
-          </label>
-          {loadingProfiles ? (
-            <p className="text-sm text-muted-foreground">Loading profiles...</p>
-          ) : profiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {modsPath.trim()
-                ? "No profiles found at the configured path"
-                : "Configure a mods path first to select a profile"}
-            </p>
-          ) : (
-            <Select
-              value={defaultProfile}
-              onValueChange={(value) => setDefaultProfile(value || "")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a default profile" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">None</SelectItem>
-                {profiles.map((profile) => (
-                  <SelectItem key={profile} value={profile}>
-                    {profile}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <p className="text-xs text-muted-foreground mt-1">
-            The default profile will be highlighted on the Profiles page
-          </p>
-        </div>
-
-        <div className="border-l-4 border-l-roygbiv-orange bg-roygbiv-orange-muted p-3 rounded-none">
-          <label className="block text-sm font-medium text-foreground mb-3">
-            Smart Pattern Filters
-          </label>
-          <p className="text-xs text-muted-foreground mb-4">
-            These patterns automatically detect and hide common noise from logs. Toggle them on or off below.
-          </p>
-          <div className="space-y-2">
-            {smartPatterns.map((pattern) => (
-              <div
-                key={pattern.id}
-                className="flex items-start justify-between gap-3 bg-background/50 border border-border/50 p-2 rounded-none"
+        <TabsContent value="general" className="flex-1 overflow-auto space-y-4 mt-4">
+          <div className="border-l-4 border-l-roygbiv-blue bg-roygbiv-blue-muted p-3 rounded-none">
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Valheim Mods Path
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={modsPath}
+                onChange={(e) => setModsPath(e.target.value)}
+                placeholder="/home/username/.config/r2modmanPlus-local/Valheim/profiles"
+                className="flex-1"
+              />
+              <Button variant="outline" onClick={handleBrowse}>
+                Browse
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={modsPath === defaultPath || !defaultPath}
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{pattern.title}</p>
-                  <p className="text-xs text-muted-foreground">{pattern.description}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant={pattern.enabled ? "default" : "outline"}
-                  size="sm"
-                  onClick={() =>
-                    setSmartPatterns((prev) =>
-                      prev.map((p) =>
-                        p.id === pattern.id ? { ...p, enabled: !p.enabled } : p
-                      )
-                    )
-                  }
-                >
-                  {pattern.enabled ? "On" : "Off"}
-                </Button>
-              </div>
-            ))}
+                Reset
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              This should point to your r2modman Valheim profiles directory
+            </p>
           </div>
-        </div>
 
-        <Button onClick={handleSave} disabled={isSaving} className="w-full">
-          {isSaving ? "Saving..." : "Save Settings"}
-        </Button>
-      </div>
+          <div className="border-l-4 border-l-roygbiv-violet bg-roygbiv-violet-muted p-3 rounded-none">
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Default Profile
+            </label>
+            {loadingProfiles ? (
+              <p className="text-sm text-muted-foreground">Loading profiles...</p>
+            ) : profiles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {modsPath.trim()
+                  ? "No profiles found at the configured path"
+                  : "Configure a mods path first to select a profile"}
+              </p>
+            ) : (
+              <Select
+                value={defaultProfile}
+                onValueChange={(value) => setDefaultProfile(value || "")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a default profile" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile} value={profile}>
+                      {profile}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              The default profile will be highlighted on the Profiles page
+            </p>
+          </div>
+
+          <Button onClick={handleSave} disabled={isSaving} className="w-full">
+            {isSaving ? "Saving..." : "Save Settings"}
+          </Button>
+        </TabsContent>
+
+        <TabsContent value="patterns" className="flex-1 overflow-auto mt-4">
+          <SmartPatternSettings
+            patterns={allPatterns}
+            onChange={(patterns) => {
+              setAllPatterns(patterns);
+            }}
+          />
+
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving} 
+            className="w-full mt-4"
+          >
+            {isSaving ? "Saving..." : "Save Pattern Settings"}
+          </Button>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -90,6 +90,7 @@ export function ProfileLogView({
   const [filterState, setFilterState] = useState<LogFilterState>(
     createDefaultFilterState(),
   );
+  const [autoReloadEnabled, setAutoReloadEnabled] = useState(false);
 
   const tailSessionIdRef = useRef<string | null>(null);
   const tailPollInFlightRef = useRef(false);
@@ -114,6 +115,7 @@ export function ProfileLogView({
     setTailLines([]);
     setTailError(null);
     setTailStatus("idle");
+    setAutoReloadEnabled(false);
     setFilterState(loadFilterState(filterStorageKey));
     void stopTailSession();
     void loadSnapshot();
@@ -122,6 +124,26 @@ export function ProfileLogView({
   useEffect(() => {
     saveFilterState(filterStorageKey, filterState);
   }, [filterStorageKey, filterState]);
+
+  useEffect(() => {
+    if (!autoReloadEnabled) return;
+
+    let intervalId: number | null = null;
+
+    const startAutoReload = () => {
+      intervalId = window.setInterval(() => {
+        void loadSnapshot();
+      }, 5000);
+    };
+
+    startAutoReload();
+
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [autoReloadEnabled]);
 
   useEffect(() => {
     if (openSection !== "tail" && tailEnabled) {
@@ -594,6 +616,20 @@ export function ProfileLogView({
                 >
                   <ArrowsClockwise size={14} />
                   Reload Table
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={`gap-1.5 ${
+                    autoReloadEnabled
+                      ? "bg-green-600 hover:bg-green-700 text-white border-green-600"
+                      : "variant-outline"
+                  }`}
+                  variant={autoReloadEnabled ? undefined : "outline"}
+                  onClick={() => setAutoReloadEnabled((current) => !current)}
+                >
+                  <Pulse size={14} weight="fill" />
+                  {autoReloadEnabled ? "Live Reload: ON" : "Live Reload: OFF"}
                 </Button>
                 {(filterState.hiddenPatternIds.length > 0 ||
                   filterState.focusedPatternId) && (
