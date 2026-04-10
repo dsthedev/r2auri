@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { GearSix, Scroll, Star, Wrench, X } from "@phosphor-icons/react";
+import { FolderOpen, GearSix, Scroll, Star, Wrench, X } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileLogView } from "@/components/ux/profile-log-view";
 import { useSettings } from "@/hooks/use-settings";
+import type { ProfileConfigIndex } from "@/types/config-index";
 
 export function ProfilesPage({
   onNavigateToSettings,
@@ -289,7 +292,10 @@ export function ProfilesPage({
                         </TabsContent>
 
                         <TabsContent value="config-editor" className="min-h-0 flex-1">
-                          <ConfigEditorTab />
+                          <ConfigEditorTab
+                            modsPath={settings.valheim_mods_path}
+                            profile={selectedProfile}
+                          />
                         </TabsContent>
                       </Tabs>
                     </CardContent>
@@ -308,41 +314,270 @@ export function ProfilesPage({
   );
 }
 
-function ConfigEditorTab() {
-  const [roadmapOpen, setRoadmapOpen] = useState(true);
+function ConfigEditorTab({ modsPath, profile }: { modsPath: string; profile: string }) {
+  const [index, setIndex] = useState<ProfileConfigIndex | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedMods, setExpandedMods] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"linked-desc" | "linked-asc" | "name-asc" | "name-desc">("linked-desc");
+  const [filterBy, setFilterBy] = useState<"all" | "with-config" | "without-config">("all");
+
+  useEffect(() => {
+    const loadConfigIndex = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const result = await invoke<ProfileConfigIndex>("get_profile_config_index", {
+          modsPath,
+          profile,
+        });
+
+        setIndex(result);
+        setExpandedMods({});
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        setIndex(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadConfigIndex();
+  }, [modsPath, profile]);
+
+  const handleReveal = async (path: string) => {
+    try {
+      await invoke("reveal_path_in_file_manager", { path });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+    }
+  };
+
+  const linkedCount =
+    index?.mods.reduce((total, group) => total + group.configFiles.length, 0) ?? 0;
+
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const filteredMods = (index?.mods ?? [])
+    .filter((group) => {
+      if (filterBy === "with-config" && group.configFiles.length === 0) {
+        return false;
+      }
+      if (filterBy === "without-config" && group.configFiles.length > 0) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const modMatch =
+        group.displayName.toLowerCase().includes(normalizedQuery) ||
+        group.modName.toLowerCase().includes(normalizedQuery) ||
+        group.authorName.toLowerCase().includes(normalizedQuery);
+
+      if (modMatch) {
+        return true;
+      }
+
+      return group.configFiles.some((file) => file.fileName.toLowerCase().includes(normalizedQuery));
+    })
+    .sort((a, b) => {
+      if (sortBy === "linked-desc") {
+        return b.configFiles.length - a.configFiles.length || a.displayName.localeCompare(b.displayName);
+      }
+      if (sortBy === "linked-asc") {
+        return a.configFiles.length - b.configFiles.length || a.displayName.localeCompare(b.displayName);
+      }
+      if (sortBy === "name-desc") {
+        return b.displayName.localeCompare(a.displayName);
+      }
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+  const filteredUnlinked = (index?.unlinked ?? []).filter((file) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return file.fileName.toLowerCase().includes(normalizedQuery);
+  });
 
   return (
-    <Collapsible open={roadmapOpen} onOpenChange={setRoadmapOpen}>
-      <Card className="border border-dashed border-border/80 bg-background/40">
+    <div className="h-full overflow-auto space-y-3 pr-1">
+      <Card className="border border-border/80 bg-card/80">
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-base">Advanced Config Editor</CardTitle>
-              <CardDescription>
-                Coming soon. This will scan BepInEx config files, map them back to mods, group them by category, and expose badges plus richer editing tools.
-              </CardDescription>
-            </div>
-
-            <CollapsibleTrigger render={<Button type="button" variant="outline" size="sm" />}>
-              {roadmapOpen ? "Collapse" : "Expand"}
-            </CollapsibleTrigger>
-          </div>
+          <CardTitle className="text-base">Config Mapping</CardTitle>
+          <CardDescription>
+            Active mods are read from mods.yml, then files in BepInEx/config are matched and grouped.
+          </CardDescription>
         </CardHeader>
-
-        <CollapsibleContent>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              The page shell is in place now so the config editor can land without reshaping the rest of the profile workflow.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">config scan</Badge>
-              <Badge variant="outline">mod mapping</Badge>
-              <Badge variant="outline">category badges</Badge>
-              <Badge variant="outline">editor UI</Badge>
-            </div>
-          </CardContent>
-        </CollapsibleContent>
+        <CardContent className="flex flex-wrap items-center gap-2 pt-0">
+          <Badge variant="outline">Profile: {profile}</Badge>
+          <Badge variant="outline">Linked files: {linkedCount}</Badge>
+          <Badge>Unlinked: {index?.unlinked.length ?? 0}</Badge>
+          <Badge variant="outline">Visible mods: {filteredMods.length}</Badge>
+        </CardContent>
       </Card>
-    </Collapsible>
+
+      <Card className="border border-border/80 bg-card/80">
+        <CardHeader>
+          <CardTitle className="text-sm">Find And Organize</CardTitle>
+          <CardDescription>
+            Search by mod or config filename, then sort and filter the mod list.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3 pt-0">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search mods or files..."
+          />
+
+          <Select value={sortBy} onValueChange={(value) => setSortBy((value as typeof sortBy) ?? "linked-desc")}> 
+            <SelectTrigger>
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="linked-desc">Most linked files</SelectItem>
+              <SelectItem value="linked-asc">Fewest linked files</SelectItem>
+              <SelectItem value="name-asc">Mod name A-Z</SelectItem>
+              <SelectItem value="name-desc">Mod name Z-A</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterBy} onValueChange={(value) => setFilterBy((value as typeof filterBy) ?? "all")}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All mods</SelectItem>
+              <SelectItem value="with-config">Only mods with configs</SelectItem>
+              <SelectItem value="without-config">Only mods without configs</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {error && (
+        <Card className="ring-0 border border-destructive text-destructive text-sm px-3 py-2">
+          Failed to load config index: {error}
+        </Card>
+      )}
+
+      {loading && (
+        <Card className="p-6 border border-border/80 bg-card/80">
+          <p className="text-sm text-muted-foreground">Scanning active mods and config files...</p>
+        </Card>
+      )}
+
+      {!loading && index && (
+        <div className="space-y-3">
+          {filteredMods.map((group) => {
+            const open = Boolean(expandedMods[group.modName]);
+
+            return (
+              <Collapsible
+                key={group.modName}
+                open={open}
+                onOpenChange={(next) => {
+                  setExpandedMods((current) => ({
+                    ...current,
+                    [group.modName]: next,
+                  }));
+                }}
+              >
+                <Card className="border border-border/80 bg-card/70 py-0 gap-0">
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{group.displayName}</p>
+                        <p className="text-xs text-muted-foreground">{group.authorName}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Badge variant={group.configFiles.length > 0 ? "default" : "secondary"}>
+                          {group.configFiles.length} config
+                        </Badge>
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {group.modName}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <CardContent className="border-t border-border/70 space-y-2 py-3">
+                      {group.configFiles.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No linked config files found for this mod.</p>
+                      ) : (
+                        group.configFiles.map((file) => (
+                          <div
+                            key={file.filePath}
+                            className="flex flex-wrap items-center justify-between gap-2 border border-border/70 bg-background/50 px-3 py-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-foreground break-all">{file.fileName}</p>
+                              <p className="text-xs text-muted-foreground break-all">{file.filePath}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleReveal(file.filePath)}
+                            >
+                              <FolderOpen size={14} />
+                              Open
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            );
+          })}
+
+          <Card className="border border-dashed border-border/80 bg-background/40">
+            <CardHeader>
+              <CardTitle className="text-sm">Unlinked Config Files</CardTitle>
+              <CardDescription>
+                Files that did not confidently map to an enabled mod.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {filteredUnlinked.length === 0 ? (
+                <p className="text-xs text-muted-foreground">All scanned files were linked.</p>
+              ) : (
+                filteredUnlinked.map((file) => (
+                  <div
+                    key={file.filePath}
+                    className="flex flex-wrap items-center justify-between gap-2 border border-border/70 bg-background/50 px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground break-all">{file.fileName}</p>
+                      <p className="text-xs text-muted-foreground break-all">{file.filePath}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleReveal(file.filePath)}
+                    >
+                      <FolderOpen size={14} />
+                      Open
+                    </Button>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

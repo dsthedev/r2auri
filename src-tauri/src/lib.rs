@@ -2,12 +2,13 @@ mod icon;
 mod log_output;
 mod models;
 mod profile;
+mod config_index;
 mod readme;
 mod settings;
 mod utils;
 
 use std::path::PathBuf;
-use models::{AppSettings, ModEntry, ProfileLogSnapshot, TailChunk, TailSessionStart};
+use models::{AppSettings, ModEntry, ProfileConfigIndex, ProfileLogSnapshot, TailChunk, TailSessionStart};
 use log_output::TailSessionRegistry;
 
 #[tauri::command]
@@ -39,6 +40,12 @@ fn list_profiles(mods_path: String) -> Result<Vec<String>, String> {
 fn get_profile_mods(mods_path: String, profile: String) -> Result<Vec<ModEntry>, String> {
     let base_path = PathBuf::from(&mods_path);
     profile::get_profile_mods(&base_path, &profile)
+}
+
+#[tauri::command]
+fn get_profile_config_index(mods_path: String, profile: String) -> Result<ProfileConfigIndex, String> {
+    let base_path = PathBuf::from(&mods_path);
+    config_index::build_profile_config_index(&base_path, &profile)
 }
 
 #[tauri::command]
@@ -93,6 +100,12 @@ fn stop_profile_log_tail(
     log_output::stop_tail_session(&session_id, state.inner())
 }
 
+#[tauri::command]
+fn reveal_path_in_file_manager(path: String) -> Result<(), String> {
+    let target = PathBuf::from(path);
+    utils::reveal_path_in_file_manager(&target)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -106,12 +119,14 @@ pub fn run() {
             get_default_mods_path,
             list_profiles,
             get_profile_mods,
+            get_profile_config_index,
             get_app_readme,
             get_mod_readme,
             get_profile_log_snapshot,
             start_profile_log_tail,
             read_profile_log_tail,
-            stop_profile_log_tail
+            stop_profile_log_tail,
+            reveal_path_in_file_manager
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

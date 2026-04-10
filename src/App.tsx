@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import { HeartIcon, PlusIcon, Code, CodeIcon } from "@phosphor-icons/react";
+import { HeartIcon, PlusIcon, CodeIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { SettingsPage } from "@/pages/settings-page";
 import { ProfilesPage } from "@/pages/profiles-page";
+import { ModsPage } from "@/pages/mods-page";
 import { setupDarkModeHotkey, toggleDarkMode } from "@/lib/utils";
 
 import "./App.css";
 
-type AppPage = "profiles" | "settings";
+type AppPage = "profiles" | "mods" | "settings";
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<AppPage>("profiles");
@@ -53,6 +54,13 @@ function AppContent() {
           </Button>
           <Button
             size="sm"
+            variant={currentPage === "mods" ? "default" : "ghost"}
+            onClick={() => setCurrentPage("mods")}
+          >
+            Mods
+          </Button>
+          <Button
+            size="sm"
             variant={currentPage === "settings" ? "default" : "ghost"}
             onClick={() => setCurrentPage("settings")}
           >
@@ -68,6 +76,7 @@ function AppContent() {
             profileSheetRequestKey={profileSheetRequestKey}
           />
         )}
+        {currentPage === "mods" && <ModsPage />}
         {currentPage === "settings" && <SettingsPage />}
       </main>      <footer className="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground print:hidden px-5 py-4 border-t border-border shrink-0">
         <HeartIcon size={16} strokeWidth={4} className="text-red-500" aria-hidden />

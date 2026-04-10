@@ -74,3 +74,27 @@ pub struct TailChunk {
     pub lines: Vec<String>,
     pub running: bool,
 }
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedConfigFile {
+    pub file_name: String,
+    pub file_path: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModConfigGroup {
+    pub mod_name: String,
+    pub author_name: String,
+    pub display_name: String,
+    pub config_files: Vec<LinkedConfigFile>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileConfigIndex {
+    pub profile: String,
+    pub mods: Vec<ModConfigGroup>,
+    pub unlinked: Vec<LinkedConfigFile>,
+}
