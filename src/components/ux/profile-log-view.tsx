@@ -36,8 +36,9 @@ import type {
   TailChunk,
   TailSessionStart,
 } from "@/types/profile-log";
-import type { SmartPatternId } from "@/types/smart-patterns";
-import { DEFAULT_SMART_PATTERNS } from "@/types/smart-patterns";
+import type { SmartPatternId, SmartPatternMetadata } from "@/types/smart-patterns";
+import { DEFAULT_SMART_PATTERNS, mergePatterns } from "@/types/smart-patterns";
+import { useSettings } from "@/hooks/use-settings";
 import { ProfileLogTable } from "./profile-log-table";
 
 const MIN_TAIL_HEIGHT = 180;
@@ -74,10 +75,12 @@ export function ProfileLogView({
   modsPath: string;
   profile: string;
 }) {
+  const { settings } = useSettings();
   const [snapshot, setSnapshot] = useState<ProfileLogSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<LogSection>("snapshot");
+  const [patternsExpanded, setPatternsExpanded] = useState(false);
   const [tailEnabled, setTailEnabled] = useState(false);
   const [tailHeight, setTailHeight] = useState(DEFAULT_TAIL_HEIGHT);
   const [tailLines, setTailLines] = useState<string[]>([]);
@@ -97,6 +100,19 @@ export function ProfileLogView({
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const tailViewportRef = useRef<HTMLDivElement | null>(null);
   const tailAutoScrollPauseUntilRef = useRef(0);
+
+  // Compute patterns early so they can be used in useEffects
+  const allPatterns = useMemo((): SmartPatternMetadata[] => {
+    const customPatterns = settings?.custom_smart_patterns ?? [];
+    return mergePatterns(DEFAULT_SMART_PATTERNS, customPatterns);
+  }, [settings?.custom_smart_patterns]);
+
+  // Build dynamic pattern ID set including custom patterns for validation
+  const validPatternIdSet = useMemo(() => {
+    const allPatternIds = allPatterns.map(p => p.id);
+    return new Set<SmartPatternId>(allPatternIds);
+  }, [allPatterns]);
+
   const filterStorageKey = useMemo(
     () => getLogFilterStorageKey(modsPath, profile),
     [modsPath, profile],
@@ -116,10 +132,10 @@ export function ProfileLogView({
     setTailError(null);
     setTailStatus("idle");
     setAutoReloadEnabled(false);
-    setFilterState(loadFilterState(filterStorageKey));
+    setFilterState(loadFilterState(filterStorageKey, validPatternIdSet));
     void stopTailSession();
     void loadSnapshot();
-  }, [modsPath, profile, filterStorageKey]);
+  }, [modsPath, profile, filterStorageKey, validPatternIdSet]);
 
   useEffect(() => {
     saveFilterState(filterStorageKey, filterState);
@@ -263,7 +279,7 @@ export function ProfileLogView({
 
   const lines = snapshot?.lines ?? [];
 
-  const smartPatternAnalysis = useMemo(() => analyzeSmartPatterns(lines), [lines]);
+  const smartPatternAnalysis = useMemo(() => analyzeSmartPatterns(lines, allPatterns), [lines, allPatterns]);
 
   const patternFilteredLines = useMemo(() => {
     const focusedPatternId = filterState.focusedPatternId;
@@ -658,7 +674,13 @@ export function ProfileLogView({
             </div>
 
             {smartPatternAnalysis.patterns.length > 0 && (
-              <div className="grid gap-3 xl:grid-cols-2">
+              <Collapsible open={patternsExpanded} onOpenChange={setPatternsExpanded}>
+                <CollapsibleTrigger className="flex items-center gap-2 py-2 text-sm font-medium text-foreground hover:text-primary w-full">
+                  {patternsExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
+                  View {smartPatternAnalysis.patterns.length} Pattern{smartPatternAnalysis.patterns.length !== 1 ? "s" : ""}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+              <div className="grid gap-3 xl:grid-cols-2 mt-3">
                 {smartPatternAnalysis.patterns.map((pattern) => {
                   const isHidden = filterState.hiddenPatternIds.includes(pattern.id);
                   const isFocused = filterState.focusedPatternId === pattern.id;
@@ -712,6 +734,8 @@ export function ProfileLogView({
                   );
                 })}
               </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
@@ -956,7 +980,10 @@ function LevelSmartFilterButton({
   );
 }
 
-function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
+function analyzeSmartPatterns(
+  lines: ProfileLogSnapshot["lines"],
+  patterns: SmartPatternMetadata[]
+) {
   const linePatternMap = new Map<number, Set<SmartPatternId>>();
 
   const addMatch = (lineNumber: number, patternId: SmartPatternId) => {
@@ -972,6 +999,7 @@ function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
     const message = line.message || line.raw;
     const source = getSourceKey(line.source);
 
+    // Built-in default pattern logic
     if (
       message.includes("All files in local storage save data:") ||
       message.includes("All files in platform save data:")
@@ -1019,9 +1047,23 @@ function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
     ) {
       addMatch(line.lineNumber, "starlevel-localization-scan");
     }
+
+    // Custom pattern regex matching
+    for (const pattern of patterns) {
+      if (pattern.isDefault || !pattern.pattern) continue; // Skip defaults and patterns without regex
+      try {
+        const regex = new RegExp(pattern.pattern);
+        const testContent = `${message}\n${source}`;
+        if (regex.test(testContent)) {
+          addMatch(line.lineNumber, pattern.id);
+        }
+      } catch (e) {
+        // Skip invalid regex patterns
+      }
+    }
   }
 
-  const patterns = DEFAULT_SMART_PATTERNS.flatMap((pattern) => {
+  const patternCards = patterns.flatMap((pattern) => {
     if (!pattern.enabled) return [];
     const matchedLines = lines.filter((line) =>
       linePatternMap.get(line.lineNumber)?.has(pattern.id),
@@ -1044,7 +1086,7 @@ function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
     ];
   });
 
-  return { patterns, linePatternMap };
+  return { patterns: patternCards, linePatternMap };
 }
 
 const SMART_PATTERN_ID_SET = new Set<SmartPatternId>(
@@ -1082,12 +1124,15 @@ function getLogFilterStorageKey(modsPath: string, profile: string) {
   return `r2auri:log-filter-state:${modsPath}:${profile}`;
 }
 
-function loadFilterState(storageKey: string): LogFilterState {
+function loadFilterState(storageKey: string, validPatternIdSet?: Set<SmartPatternId>): LogFilterState {
   const fallback = createDefaultFilterState();
 
   if (typeof window === "undefined") {
     return fallback;
   }
+
+  // Default to only default patterns if no valid set provided
+  const patternIdSet = validPatternIdSet || SMART_PATTERN_ID_SET;
 
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -1113,12 +1158,12 @@ function loadFilterState(storageKey: string): LogFilterState {
       ? parsed.hiddenPatternIds.filter(
           (value): value is SmartPatternId =>
             typeof value === "string" &&
-            SMART_PATTERN_ID_SET.has(value as SmartPatternId),
+            patternIdSet.has(value as SmartPatternId),
         )
       : [];
     const focusedPatternId =
       typeof parsed.focusedPatternId === "string" &&
-      SMART_PATTERN_ID_SET.has(parsed.focusedPatternId as SmartPatternId)
+      patternIdSet.has(parsed.focusedPatternId as SmartPatternId)
         ? (parsed.focusedPatternId as SmartPatternId)
         : null;
 

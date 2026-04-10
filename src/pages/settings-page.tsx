@@ -40,6 +40,26 @@ export function SettingsPage() {
     }
   }, [settings?.custom_smart_patterns]);
 
+  // Auto-save custom patterns after user stops editing (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Extract custom patterns (those not in DEFAULT_SMART_PATTERNS)
+      const defaultIds = new Set(DEFAULT_SMART_PATTERNS.map(p => p.id));
+      const customPatterns = allPatterns.filter(p => !defaultIds.has(p.id));
+
+      // Only save if there are custom patterns or if we previously had some (to clear them)
+      if (settings && (customPatterns.length > 0 || settings.custom_smart_patterns?.length)) {
+        updateSettings({
+          valheim_mods_path: modsPath || settings.valheim_mods_path,
+          default_profile: defaultProfile || settings.default_profile,
+          custom_smart_patterns: customPatterns.length > 0 ? customPatterns : undefined,
+        }).catch(err => console.error("Failed to auto-save patterns:", err));
+      }
+    }, 2000); // Wait 2 seconds after last pattern change
+
+    return () => clearTimeout(timer);
+  }, [allPatterns, modsPath, defaultProfile, settings, updateSettings]);
+
   // Fetch the expanded default path on mount
   useEffect(() => {
     invoke<string>("get_default_mods_path")

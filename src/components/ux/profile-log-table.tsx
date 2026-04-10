@@ -150,6 +150,11 @@ export function ProfileLogTable({ lines }: { lines: ProfileLogLine[] }) {
     suppressDragLeaveHidesColumns: true,
     rowBuffer: 10,
     ensureDomOrder: true,
+    suppressClipboardApi: false,
+    suppressCopyRowsToClipboard: false,
+    rowSelection: "multiple",
+    enableCellTextSelection: true,
+    enableBrowserTooltips: true,
   };
 
   return (
