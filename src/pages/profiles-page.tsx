@@ -1,21 +1,25 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { GearSix, Scroll, Star, Wrench } from "@phosphor-icons/react";
+import { GearSix, Scroll, Star, Wrench, X } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileLogView } from "@/components/ux/profile-log-view";
 import { useSettings } from "@/hooks/use-settings";
 
 export function ProfilesPage({
   onNavigateToSettings,
+  profileSheetRequestKey,
 }: {
   onNavigateToSettings: () => void;
+  profileSheetRequestKey: number;
 }) {
   const { settings, loading: settingsLoading } = useSettings();
   const [profiles, setProfiles] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>("");
+  const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +62,10 @@ export function ProfilesPage({
     setSelectedProfile((current) => (current && profiles.includes(current) ? current : profiles[0]));
   }, [profiles, settings?.default_profile]);
 
+  useEffect(() => {
+    setProfileSheetOpen(true);
+  }, [profileSheetRequestKey]);
+
   // Sort profiles with default at the top
   const sortedProfiles = [
     ...(profiles.filter((p) => p === settings?.default_profile) || []),
@@ -96,7 +104,7 @@ export function ProfilesPage({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-5 py-3">
+    <div className="relative flex min-h-0 flex-1 flex-col px-5 py-3">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-2">Profiles</h1>
@@ -137,16 +145,40 @@ export function ProfilesPage({
       )}
 
       {!loading && profiles.length > 0 && (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <div className="min-h-0 overflow-auto">
-            <Card className="border border-border/80 bg-card/80">
+        <>
+          {profileSheetOpen && (
+            <button
+              type="button"
+              aria-label="Close profile sheet"
+              className="absolute inset-0 z-20 bg-background/60 backdrop-blur-[1px]"
+              onClick={() => setProfileSheetOpen(false)}
+            />
+          )}
+
+          <div className={`absolute inset-y-3 left-5 z-30 w-[22rem] max-w-[calc(100vw-2.5rem)] transition-transform duration-200 ${
+            profileSheetOpen ? "translate-x-0" : "-translate-x-[110%]"
+          }`}>
+            <Card className="flex h-full flex-col border border-border/80 bg-card/95 shadow-2xl">
               <CardHeader className="border-b border-border/70">
-                <CardTitle>Available Profiles</CardTitle>
-                <CardDescription>
-                  Choose a mod profile to inspect. The configured default is pinned to the top.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle>Available Profiles</CardTitle>
+                    <CardDescription>
+                      Choose a mod profile to inspect. The configured default is pinned to the top.
+                    </CardDescription>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => setProfileSheetOpen(false)}
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-2 pt-4">
+              <CardContent className="min-h-0 flex-1 overflow-auto space-y-2 pt-4">
                 {sortedProfiles.map((profile) => {
                   const isDefault = profile === settings?.default_profile;
                   const isSelected = profile === selectedProfile;
@@ -160,7 +192,10 @@ export function ProfilesPage({
                           ? "border-primary bg-primary/10"
                           : "border-border/70 bg-background/40 hover:bg-accent/40"
                       }`}
-                      onClick={() => setSelectedProfile(profile)}
+                      onClick={() => {
+                        setSelectedProfile(profile);
+                        setProfileSheetOpen(false);
+                      }}
                     >
                       <div className="flex items-start gap-2">
                         {isDefault ? (
@@ -186,7 +221,7 @@ export function ProfilesPage({
             </Card>
           </div>
 
-          <div className="min-h-0 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-hidden">
             {selectedProfile ? (
               <Card className="flex h-full min-h-0 flex-col border border-border/80 bg-card/80">
                 <CardHeader className="gap-2 border-b border-border/70">
@@ -226,25 +261,7 @@ export function ProfilesPage({
                     </TabsContent>
 
                     <TabsContent value="config-editor" className="min-h-0 flex-1">
-                      <Card className="border border-dashed border-border/80 bg-background/40">
-                        <CardHeader>
-                          <CardTitle className="text-base">Advanced Config Editor</CardTitle>
-                          <CardDescription>
-                            Coming soon. This will scan BepInEx config files, map them back to mods, group them by category, and expose badges plus richer editing tools.
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-sm text-muted-foreground">
-                          <p>
-                            The page shell is in place now so the config editor can land without reshaping the rest of the profile workflow.
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">config scan</Badge>
-                            <Badge variant="outline">mod mapping</Badge>
-                            <Badge variant="outline">category badges</Badge>
-                            <Badge variant="outline">editor UI</Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <ConfigEditorTab />
                     </TabsContent>
                   </Tabs>
                 </CardContent>
@@ -255,8 +272,47 @@ export function ProfilesPage({
               </Card>
             )}
           </div>
-        </div>
+        </>
       )}
     </div>
+  );
+}
+
+function ConfigEditorTab() {
+  const [roadmapOpen, setRoadmapOpen] = useState(true);
+
+  return (
+    <Collapsible open={roadmapOpen} onOpenChange={setRoadmapOpen}>
+      <Card className="border border-dashed border-border/80 bg-background/40">
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">Advanced Config Editor</CardTitle>
+              <CardDescription>
+                Coming soon. This will scan BepInEx config files, map them back to mods, group them by category, and expose badges plus richer editing tools.
+              </CardDescription>
+            </div>
+
+            <CollapsibleTrigger render={<Button type="button" variant="outline" size="sm" />}>
+              {roadmapOpen ? "Collapse" : "Expand"}
+            </CollapsibleTrigger>
+          </div>
+        </CardHeader>
+
+        <CollapsibleContent>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              The page shell is in place now so the config editor can land without reshaping the rest of the profile workflow.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">config scan</Badge>
+              <Badge variant="outline">mod mapping</Badge>
+              <Badge variant="outline">category badges</Badge>
+              <Badge variant="outline">editor UI</Badge>
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }

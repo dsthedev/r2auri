@@ -38,41 +38,6 @@ function makeSearchBlob(mod: ModEntry): string {
         .toLowerCase();
 }
 
-function normalizeName(text: string) {
-    return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function tokenizeDescription(text: string) {
-    const stopWords = new Set([
-        "the",
-        "and",
-        "for",
-        "with",
-        "this",
-        "that",
-        "from",
-        "into",
-        "mod",
-        "adds",
-        "add",
-    ]);
-    return new Set(
-        normalizeName(text)
-            .split(" ")
-            .filter((t) => t.length > 3 && !stopWords.has(t))
-    );
-}
-
-function jaccard(a: Set<string>, b: Set<string>) {
-    if (a.size === 0 || b.size === 0) return 0;
-    let intersection = 0;
-    for (const value of a) {
-        if (b.has(value)) intersection++;
-    }
-    const union = a.size + b.size - intersection;
-    return union === 0 ? 0 : intersection / union;
-}
-
 export function ProfileView({ profiles, modsPath }: { profiles: string[]; modsPath: string }) {
     const [selectedProfile, setSelectedProfile] = useState<string>(profiles[0] ?? "");
     const [mods, setMods] = useState<ModEntry[]>([]);
@@ -237,54 +202,6 @@ export function ProfileView({ profiles, modsPath }: { profiles: string[]; modsPa
             .slice(0, 8);
     }, [mods]);
 
-    const packageTypeGroups = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const mod of mods) {
-            const key = mod.packageType || "unknown";
-            map.set(key, (map.get(key) ?? 0) + 1);
-        }
-        return [...map.entries()]
-            .map(([type, count]) => ({ type, count }))
-            .sort((a, b) => b.count - a.count);
-    }, [mods]);
-
-    const duplicates = useMemo(() => {
-        const findings: string[] = [];
-
-        const byDisplay = new Map<string, ModEntry[]>();
-        for (const mod of mods) {
-            const key = normalizeName(mod.displayName);
-            if (!key) continue;
-            const list = byDisplay.get(key) ?? [];
-            list.push(mod);
-            byDisplay.set(key, list);
-        }
-
-        for (const [key, group] of byDisplay.entries()) {
-            if (group.length > 1) {
-                findings.push(`Same display name '${key}': ${group.map((g) => g.name).join(", ")}`);
-            }
-        }
-
-        const descTokens = mods.map((m) => ({ mod: m, tokens: tokenizeDescription(m.description) }));
-        for (let i = 0; i < descTokens.length; i++) {
-            for (let j = i + 1; j < descTokens.length; j++) {
-                const a = descTokens[i];
-                const b = descTokens[j];
-                if (a.mod.name === b.mod.name) continue;
-                if (a.mod.authorName === b.mod.authorName) continue;
-                const sim = jaccard(a.tokens, b.tokens);
-                if (sim >= 0.65) {
-                    findings.push(
-                        `Potential overlap (${Math.round(sim * 100)}%): ${a.mod.name} <-> ${b.mod.name}`
-                    );
-                }
-            }
-        }
-
-        return findings.slice(0, 10);
-    }, [mods]);
-
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         if (!q) return [...mods].sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -326,7 +243,7 @@ export function ProfileView({ profiles, modsPath }: { profiles: string[]; modsPa
                 )}
 
                 <div className="flex items-center gap-2 flex-wrap">
-                    <div className="relative flex-1 min-w-[220px]">
+                    <div className="relative flex-1 min-w-55">
                         <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none" />
                         <Input
                             className="pl-6"

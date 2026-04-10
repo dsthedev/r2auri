@@ -11,10 +11,16 @@ type AppPage = "profiles" | "settings";
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<AppPage>("profiles");
+  const [profileSheetRequestKey, setProfileSheetRequestKey] = useState(0);
 
   useEffect(() => {
     return setupDarkModeHotkey();
   }, []);
+
+  const handleProfilesClick = () => {
+    setCurrentPage("profiles");
+    setProfileSheetRequestKey((current) => current + 1);
+  };
 
   return (
     <div className="relative h-screen flex flex-col bg-background text-foreground">
@@ -40,7 +46,7 @@ function AppContent() {
           <Button
             size="sm"
             variant={currentPage === "profiles" ? "default" : "ghost"}
-            onClick={() => setCurrentPage("profiles")}
+            onClick={handleProfilesClick}
           >
             Profiles
           </Button>
@@ -56,7 +62,10 @@ function AppContent() {
 
       <main className="flex-1 overflow-hidden flex flex-col">
         {currentPage === "profiles" && (
-          <ProfilesPage onNavigateToSettings={() => setCurrentPage("settings")} />
+          <ProfilesPage
+            onNavigateToSettings={() => setCurrentPage("settings")}
+            profileSheetRequestKey={profileSheetRequestKey}
+          />
         )}
         {currentPage === "settings" && <SettingsPage />}
       </main>
