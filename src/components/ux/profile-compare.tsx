@@ -17,7 +17,7 @@ import { CompareSection } from "./compare-section";
 import type { ModEntry } from "./types";
 import { versionStr } from "./types";
 
-export function ProfileCompare({ profiles }: { profiles: string[] }) {
+export function ProfileCompare({ profiles, modsPath }: { profiles: string[]; modsPath: string }) {
     const [profileA, setProfileA] = useState<string>(profiles[0] ?? "");
     const [profileB, setProfileB] = useState<string>(profiles[1] ?? profiles[0] ?? "");
     const [modsA, setModsA] = useState<ModEntry[]>([]);
@@ -28,20 +28,20 @@ export function ProfileCompare({ profiles }: { profiles: string[] }) {
     useEffect(() => {
         if (!profileA) return;
         setLoadingA(true);
-        invoke<ModEntry[]>("get_profile_mods", { profile: profileA })
+        invoke<ModEntry[]>("get_profile_mods", { modsPath, profile: profileA })
             .then(setModsA)
             .catch(console.error)
             .finally(() => setLoadingA(false));
-    }, [profileA]);
+    }, [profileA, modsPath]);
 
     useEffect(() => {
         if (!profileB) return;
         setLoadingB(true);
-        invoke<ModEntry[]>("get_profile_mods", { profile: profileB })
+        invoke<ModEntry[]>("get_profile_mods", { modsPath, profile: profileB })
             .then(setModsB)
             .catch(console.error)
             .finally(() => setLoadingB(false));
-    }, [profileB]);
+    }, [profileB, modsPath]);
 
     const cmp = useMemo(() => {
         const mapA = new Map(modsA.map((m) => [m.name, m]));

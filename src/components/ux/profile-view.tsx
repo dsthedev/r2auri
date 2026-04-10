@@ -73,7 +73,7 @@ function jaccard(a: Set<string>, b: Set<string>) {
     return union === 0 ? 0 : intersection / union;
 }
 
-export function ProfileView({ profiles }: { profiles: string[] }) {
+export function ProfileView({ profiles, modsPath }: { profiles: string[]; modsPath: string }) {
     const [selectedProfile, setSelectedProfile] = useState<string>(profiles[0] ?? "");
     const [mods, setMods] = useState<ModEntry[]>([]);
     const [selectedMod, setSelectedMod] = useState<ModEntry | null>(null);
@@ -91,7 +91,7 @@ export function ProfileView({ profiles }: { profiles: string[] }) {
         setExpandedModName(null);
         setLoading(true);
         setError(null);
-        invoke<ModEntry[]>("get_profile_mods", { profile: selectedProfile })
+        invoke<ModEntry[]>("get_profile_mods", { modsPath, profile: selectedProfile })
             .then(setMods)
             .catch((e) => setError(String(e)))
             .finally(() => setLoading(false));
@@ -117,7 +117,7 @@ export function ProfileView({ profiles }: { profiles: string[] }) {
         setSelectedMod(mod);
         setReadmeLoading(true);
         setReadmeError(null);
-        invoke<string>("get_mod_readme", { profile: selectedProfile, modName: mod.name })
+        invoke<string>("get_mod_readme", { modsPath, profile: selectedProfile, modName: mod.name })
             .then((content) => setReadmeContent(content))
             .catch((e) => {
                 setReadmeError(String(e));
