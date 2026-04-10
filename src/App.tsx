@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HeartIcon, PlusIcon, Code, CodeIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { SettingsPage } from "@/pages/settings-page";
@@ -23,7 +24,7 @@ function AppContent() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-background text-foreground overflow-auto">
+    <div className="relative min-h-screen flex flex-col bg-background text-foreground overflow-auto overflow-y-auto">
       <Button
         type="button"
         size="sm"
@@ -33,7 +34,7 @@ function AppContent() {
       >
         Toggle Theme (D)
       </Button>
-      <header className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-card shrink-0">
+      <header className="sticky top-0 z-10 flex items-center justify-between px-5 py-2.5 border-b border-border bg-card shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-base font-bold text-primary tracking-tight">
             ⚔ r2auri
@@ -60,7 +61,7 @@ function AppContent() {
         </nav>
       </header>
 
-      <main className="flex-1 overflow-auto flex flex-col">
+      <main className="flex-1 flex flex-col">
         {currentPage === "profiles" && (
           <ProfilesPage
             onNavigateToSettings={() => setCurrentPage("settings")}
@@ -68,8 +69,19 @@ function AppContent() {
           />
         )}
         {currentPage === "settings" && <SettingsPage />}
-      </main>
-    </div>
+      </main>      <footer className="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground print:hidden px-5 py-4 border-t border-border shrink-0">
+        <HeartIcon size={16} strokeWidth={4} className="text-red-500" aria-hidden />
+        <PlusIcon size={12} strokeWidth={4} className="text-slate-500" aria-hidden />
+        <a
+          href="https://github.com/dsthedev/r2auri"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+        >
+          <CodeIcon size={18} strokeWidth={4} className="" aria-hidden />
+          <span className="sr-only">Source code</span>
+        </a>
+      </footer>    </div>
   );
 }
 

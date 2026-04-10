@@ -40,6 +40,7 @@ import type { SmartPatternId, SmartPatternMetadata } from "@/types/smart-pattern
 import { DEFAULT_SMART_PATTERNS, mergePatterns } from "@/types/smart-patterns";
 import { useSettings } from "@/hooks/use-settings";
 import { ProfileLogTable } from "./profile-log-table";
+import { QuickAddPattern } from "./quick-add-pattern";
 
 const MIN_TAIL_HEIGHT = 180;
 const MAX_TAIL_HEIGHT = 420;
@@ -75,7 +76,7 @@ export function ProfileLogView({
   modsPath: string;
   profile: string;
 }) {
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const [snapshot, setSnapshot] = useState<ProfileLogSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
@@ -512,6 +513,23 @@ export function ProfileLogView({
     }));
   };
 
+  const handleAddCustomPattern = async (pattern: SmartPatternMetadata) => {
+    if (!settings) return;
+    
+    const updatedPatterns = [...(settings.custom_smart_patterns ?? []), pattern];
+    const updatedSettings = {
+      ...settings,
+      custom_smart_patterns: updatedPatterns,
+    };
+    
+    try {
+      await updateSettings(updatedSettings);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Failed to add custom pattern:", message);
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AccordionSection
@@ -889,6 +907,12 @@ export function ProfileLogView({
           {!loadingSnapshot && snapshot && (
             <div className="border border-border/70 bg-background/50 overflow-hidden" style={{ height: "50vh", maxHeight: "50vh" }}>
               <ProfileLogTable lines={filteredLines} />
+            </div>
+          )}
+
+          {!loadingSnapshot && snapshot && (
+            <div className="pt-4">
+              <QuickAddPattern onAddPattern={handleAddCustomPattern} />
             </div>
           )}
         </div>
