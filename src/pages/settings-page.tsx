@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DEFAULT_SMART_PATTERNS } from "@/types/smart-patterns";
+import type { SmartPatternMetadata } from "@/types/smart-patterns";
 
 export function SettingsPage() {
   const { settings, updateSettings, error: contextError } = useSettings();
@@ -25,6 +27,7 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [smartPatterns, setSmartPatterns] = useState<SmartPatternMetadata[]>(DEFAULT_SMART_PATTERNS);
 
   // Fetch the expanded default path on mount
   useEffect(() => {
@@ -188,6 +191,42 @@ export function SettingsPage() {
           <p className="text-xs text-muted-foreground mt-1">
             The default profile will be highlighted on the Profiles page
           </p>
+        </div>
+
+        <div className="border-l-4 border-l-roygbiv-orange bg-roygbiv-orange-muted p-3 rounded-none">
+          <label className="block text-sm font-medium text-foreground mb-3">
+            Smart Pattern Filters
+          </label>
+          <p className="text-xs text-muted-foreground mb-4">
+            These patterns automatically detect and hide common noise from logs. Toggle them on or off below.
+          </p>
+          <div className="space-y-2">
+            {smartPatterns.map((pattern) => (
+              <div
+                key={pattern.id}
+                className="flex items-start justify-between gap-3 bg-background/50 border border-border/50 p-2 rounded-none"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{pattern.title}</p>
+                  <p className="text-xs text-muted-foreground">{pattern.description}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant={pattern.enabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    setSmartPatterns((prev) =>
+                      prev.map((p) =>
+                        p.id === pattern.id ? { ...p, enabled: !p.enabled } : p
+                      )
+                    )
+                  }
+                >
+                  {pattern.enabled ? "On" : "Off"}
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
 
         <Button onClick={handleSave} disabled={isSaving} className="w-full">

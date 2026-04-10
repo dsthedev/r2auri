@@ -37,6 +37,8 @@ import type {
   TailChunk,
   TailSessionStart,
 } from "@/types/profile-log";
+import type { SmartPatternId } from "@/types/smart-patterns";
+import { DEFAULT_SMART_PATTERNS } from "@/types/smart-patterns";
 
 const MIN_TAIL_HEIGHT = 180;
 const MAX_TAIL_HEIGHT = 420;
@@ -46,14 +48,6 @@ const TAIL_AUTO_SCROLL_PAUSE_MS = 4000;
 const TAIL_BOTTOM_THRESHOLD_PX = 24;
 
 type LogSection = "tail" | "snapshot" | null;
-type SmartPatternId =
-  | "shader-compiler-spam"
-  | "hookgen-reuse"
-  | "plugin-loading"
-  | "jotunn-init"
-  | "unity-localization-flood"
-  | "starlevel-localization-scan"
-  | "save-data-dump";
 
 interface SmartPatternCard {
   id: SmartPatternId;
@@ -83,6 +77,8 @@ export function ProfileLogView({
   const [snapshot, setSnapshot] = useState<ProfileLogSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [snapshotOffset, setSnapshotOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [openSection, setOpenSection] = useState<LogSection>("snapshot");
   const [tailEnabled, setTailEnabled] = useState(false);
   const [tailHeight, setTailHeight] = useState(DEFAULT_TAIL_HEIGHT);
@@ -120,6 +116,7 @@ export function ProfileLogView({
     setTailLines([]);
     setTailError(null);
     setTailStatus("idle");
+    setSnapshotOffset(0);
     setFilterState(loadFilterState(filterStorageKey));
     void stopTailSession();
     void loadSnapshot();
@@ -345,12 +342,79 @@ export function ProfileLogView({
         },
       );
       setSnapshot(result);
+      
+      // Start loading remaining lines in background
+      loadRemainingSnapshotLines(result, modsPath, profile);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setSnapshotError(message);
       setSnapshot(null);
     } finally {
       setLoadingSnapshot(false);
+    }
+  };
+
+  const loadRemainingSnapshotLines = async (
+    initialSnapshot: ProfileLogSnapshot,
+    modsPathArg: string,
+    profileArg: string
+  ) => {
+    let currentOffset = 500;
+    while (currentOffset < initialSnapshot.totalLines) {
+      try {
+        const chunk = await invoke<ProfileLogSnapshot>(
+          "get_profile_log_snapshot_paginated",
+          {
+            modsPath: modsPathArg,
+            profile: profileArg,
+            offset: currentOffset,
+            limit: 500,
+          },
+        );
+        
+        setSnapshot((prev) =>
+          prev ? { ...prev, lines: [...prev.lines, ...chunk.lines] } : chunk
+        );
+        
+        currentOffset += 500;
+      } catch {
+        // Silently fail on background load - user can click "Load Older Lines" if needed
+        break;
+      }
+    }
+  };
+
+  const loadMoreSnapshot = async () => {
+    if (!snapshot) return;
+    const newOffset = snapshotOffset + 500;
+    if (newOffset >= snapshot.totalLines) return;
+
+    try {
+      setLoadingMore(true);
+      const result = await invoke<ProfileLogSnapshot>(
+        "get_profile_log_snapshot_paginated",
+        {
+          modsPath,
+          profile,
+          offset: newOffset,
+          limit: 500,
+        },
+      );
+      setSnapshotOffset(newOffset);
+      // Append loaded lines to existing snapshot
+      setSnapshot((prev) =>
+        prev
+          ? {
+              ...prev,
+              lines: [...prev.lines, ...result.lines],
+            }
+          : result
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSnapshotError(message);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -601,6 +665,18 @@ export function ProfileLogView({
                   <ArrowsClockwise size={14} />
                   Reload Table
                 </Button>
+                {snapshot &&
+                  snapshotOffset + 500 < snapshot.totalLines && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void loadMoreSnapshot()}
+                      disabled={loadingMore}
+                    >
+                      {loadingMore ? "Loading..." : "Load Older Lines"}
+                    </Button>
+                  )}
                 {(filterState.hiddenPatternIds.length > 0 ||
                   filterState.focusedPatternId) && (
                   <Button
@@ -1029,7 +1105,8 @@ function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
     }
   }
 
-  const patterns = SMART_PATTERN_METADATA.flatMap((pattern) => {
+  const patterns = DEFAULT_SMART_PATTERNS.flatMap((pattern) => {
+    if (!pattern.enabled) return [];
     const matchedLines = lines.filter((line) =>
       linePatternMap.get(line.lineNumber)?.has(pattern.id),
     );
@@ -1054,58 +1131,8 @@ function analyzeSmartPatterns(lines: ProfileLogSnapshot["lines"]) {
   return { patterns, linePatternMap };
 }
 
-const SMART_PATTERN_METADATA: Array<{
-  id: SmartPatternId;
-  title: string;
-  description: string;
-  minLinesToShow: number;
-}> = [
-  {
-    id: "shader-compiler-spam",
-    title: "Repeated Shader Error Spam",
-    description: "Same Unity shader compiler error repeated enough times to drown out distinct failures.",
-    minLinesToShow: 3,
-  },
-  {
-    id: "hookgen-reuse",
-    title: "HookGen Reuse Chatter",
-    description: "MMHOOK reuse confirmations from HookGenPatcher. Useful once, noisy after that.",
-    minLinesToShow: 4,
-  },
-  {
-    id: "plugin-loading",
-    title: "Plugin Loading Flood",
-    description: "Standard BepInEx loading lines for each plugin during startup.",
-    minLinesToShow: 8,
-  },
-  {
-    id: "jotunn-init",
-    title: "Jotunn Init Sequence",
-    description: "Framework initialization steps that are often routine startup noise.",
-    minLinesToShow: 5,
-  },
-  {
-    id: "unity-localization-flood",
-    title: "Unity Localization Flood",
-    description: "Repeated localization file load confirmations from Unity Log.",
-    minLinesToShow: 4,
-  },
-  {
-    id: "starlevel-localization-scan",
-    title: "StarLevel Localization Scan",
-    description: "StarLevelSystem localization discovery and registration lines.",
-    minLinesToShow: 6,
-  },
-  {
-    id: "save-data-dump",
-    title: "Save Data Inventory Dump",
-    description: "Large block of local/platform save file listings that overwhelm the log table.",
-    minLinesToShow: 8,
-  },
-];
-
 const SMART_PATTERN_ID_SET = new Set<SmartPatternId>(
-  SMART_PATTERN_METADATA.map((pattern) => pattern.id),
+  DEFAULT_SMART_PATTERNS.map((pattern) => pattern.id),
 );
 
 function truncateForCard(text: string) {
@@ -1114,7 +1141,7 @@ function truncateForCard(text: string) {
 
 function formatPatternLabel(patternId: SmartPatternId) {
   return (
-    SMART_PATTERN_METADATA.find((pattern) => pattern.id === patternId)?.title ?? patternId
+    DEFAULT_SMART_PATTERNS.find((pattern) => pattern.id === patternId)?.title ?? patternId
   );
 }
 
