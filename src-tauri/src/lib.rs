@@ -75,6 +75,17 @@ fn get_profile_log_snapshot(mods_path: String, profile: String) -> Result<Profil
 }
 
 #[tauri::command]
+fn get_profile_log_snapshot_paginated(
+    mods_path: String,
+    profile: String,
+    offset: usize,
+    limit: usize,
+) -> Result<ProfileLogSnapshot, String> {
+    let base_path = PathBuf::from(&mods_path);
+    log_output::get_profile_log_snapshot_paginated(&base_path, &profile, offset, limit)
+}
+
+#[tauri::command]
 fn start_profile_log_tail(
     state: tauri::State<'_, TailSessionRegistry>,
     mods_path: String,
@@ -123,6 +134,7 @@ pub fn run() {
             get_app_readme,
             get_mod_readme,
             get_profile_log_snapshot,
+            get_profile_log_snapshot_paginated,
             start_profile_log_tail,
             read_profile_log_tail,
             stop_profile_log_tail,
