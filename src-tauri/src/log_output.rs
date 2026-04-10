@@ -43,10 +43,39 @@ fn should_include_line(raw_line: &str) -> bool {
     !raw_line.trim().is_empty()
 }
 
-/// Get a paginated chunk of log lines. Loads from the END of the file (most recent first).
-/// offset=0 gets the most recent lines, offset=500 skips the first 500 recent lines, etc.
+/// Get the complete log snapshot (all lines, one-time load).
+/// Canvas rendering makes pagination unnecessary - we can handle 10,000+ rows efficiently.
 pub fn get_profile_log_snapshot(base_path: &Path, profile: &str) -> Result<ProfileLogSnapshot, String> {
-    get_profile_log_snapshot_paginated(base_path, profile, 0, 500)
+    let log_path = resolve_profile_log_path(base_path, profile)?;
+    let file = File::open(&log_path).map_err(|e| e.to_string())?;
+    let reader = BufReader::new(file);
+
+    // Load all lines with pre-filtering applied
+    let mut all_lines: Vec<String> = Vec::new();
+    for line in reader.lines() {
+        let raw = line.map_err(|e| e.to_string())?;
+        if should_include_line(&raw) {
+            all_lines.push(raw);
+        }
+    }
+
+    let total_lines = all_lines.len();
+    
+    // Reverse to get most recent lines first
+    all_lines.reverse();
+    
+    // Parse all lines
+    let mut lines = Vec::new();
+    for (i, raw_line) in all_lines.iter().enumerate() {
+        let line_number = total_lines - i;
+        lines.push(parse_log_line(line_number, raw_line));
+    }
+
+    Ok(ProfileLogSnapshot {
+        path: log_path.to_string_lossy().to_string(),
+        total_lines,
+        lines,
+    })
 }
 
 /// Get a paginated chunk of log lines.

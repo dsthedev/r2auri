@@ -77,8 +77,6 @@ export function ProfileLogView({
   const [snapshot, setSnapshot] = useState<ProfileLogSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
-  const [snapshotOffset, setSnapshotOffset] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [openSection, setOpenSection] = useState<LogSection>("snapshot");
   const [tailEnabled, setTailEnabled] = useState(false);
   const [tailHeight, setTailHeight] = useState(DEFAULT_TAIL_HEIGHT);
@@ -116,7 +114,6 @@ export function ProfileLogView({
     setTailLines([]);
     setTailError(null);
     setTailStatus("idle");
-    setSnapshotOffset(0);
     setFilterState(loadFilterState(filterStorageKey));
     void stopTailSession();
     void loadSnapshot();
@@ -342,79 +339,12 @@ export function ProfileLogView({
         },
       );
       setSnapshot(result);
-      
-      // Start loading remaining lines in background
-      loadRemainingSnapshotLines(result, modsPath, profile);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setSnapshotError(message);
       setSnapshot(null);
     } finally {
       setLoadingSnapshot(false);
-    }
-  };
-
-  const loadRemainingSnapshotLines = async (
-    initialSnapshot: ProfileLogSnapshot,
-    modsPathArg: string,
-    profileArg: string
-  ) => {
-    let currentOffset = 500;
-    while (currentOffset < initialSnapshot.totalLines) {
-      try {
-        const chunk = await invoke<ProfileLogSnapshot>(
-          "get_profile_log_snapshot_paginated",
-          {
-            modsPath: modsPathArg,
-            profile: profileArg,
-            offset: currentOffset,
-            limit: 500,
-          },
-        );
-        
-        setSnapshot((prev) =>
-          prev ? { ...prev, lines: [...prev.lines, ...chunk.lines] } : chunk
-        );
-        
-        currentOffset += 500;
-      } catch {
-        // Silently fail on background load - user can click "Load Older Lines" if needed
-        break;
-      }
-    }
-  };
-
-  const loadMoreSnapshot = async () => {
-    if (!snapshot) return;
-    const newOffset = snapshotOffset + 500;
-    if (newOffset >= snapshot.totalLines) return;
-
-    try {
-      setLoadingMore(true);
-      const result = await invoke<ProfileLogSnapshot>(
-        "get_profile_log_snapshot_paginated",
-        {
-          modsPath,
-          profile,
-          offset: newOffset,
-          limit: 500,
-        },
-      );
-      setSnapshotOffset(newOffset);
-      // Append loaded lines to existing snapshot
-      setSnapshot((prev) =>
-        prev
-          ? {
-              ...prev,
-              lines: [...prev.lines, ...result.lines],
-            }
-          : result
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSnapshotError(message);
-    } finally {
-      setLoadingMore(false);
     }
   };
 
@@ -665,18 +595,6 @@ export function ProfileLogView({
                   <ArrowsClockwise size={14} />
                   Reload Table
                 </Button>
-                {snapshot &&
-                  snapshotOffset + 500 < snapshot.totalLines && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void loadMoreSnapshot()}
-                      disabled={loadingMore}
-                    >
-                      {loadingMore ? "Loading..." : "Load Older Lines"}
-                    </Button>
-                  )}
                 {(filterState.hiddenPatternIds.length > 0 ||
                   filterState.focusedPatternId) && (
                   <Button
@@ -909,7 +827,7 @@ export function ProfileLogView({
           )}
 
           {!loadingSnapshot && snapshot && (
-            <div className="h-full min-h-0 flex-1 border border-border/70 bg-background/50 overflow-hidden">
+            <div className="border border-border/70 bg-background/50 overflow-hidden" style={{ height: "50vh", maxHeight: "50vh" }}>
               <ProfileLogTable lines={filteredLines} />
             </div>
           )}

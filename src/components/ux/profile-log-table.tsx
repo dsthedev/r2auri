@@ -153,7 +153,7 @@ export function ProfileLogTable({ lines }: { lines: ProfileLogLine[] }) {
   };
 
   return (
-    <div className="ag-theme-quartz h-full w-full min-h-0 flex-1">
+    <div className="ag-theme-quartz" style={{ width: "100%", height: "100%" }}>
       <AgGridReact
         {...gridProps}
         onGridReady={(params) => {

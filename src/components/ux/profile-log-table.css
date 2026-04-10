@@ -1,50 +1,34 @@
-/* ag-grid legacy theme customizations to match app dark theme */
+/* ag-grid dark theme - using CSS variables for clean override */
 
 .ag-theme-quartz {
-  background-color: rgb(13 13 13 / 0.5);
-  color: rgb(250 250 250 / 0.9);
+  /* Sizing */
+  width: 100%;
+  height: 100%;
+
+  /* Colors - using CSS custom properties that cascade */
+  --ag-background-color: rgb(13 13 13 / 0.5);
+  --ag-foreground-color: rgb(250 250 250 / 0.9);
+  --ag-border-color: rgb(229 231 235 / 0.2);
+  --ag-header-background-color: rgb(23 23 23 / 0.95);
+  --ag-header-foreground-color: rgb(161 161 170);
+  --ag-data-background-color: transparent;
+  --ag-row-background-color: transparent;
+  --ag-row-hover-color: rgb(63 63 70 / 0.15);
+  --ag-row-alternating-background-color: rgb(63 63 70 / 0.08);
+  --ag-selected-row-background-color: rgb(8 145 178 / 0.2);
+  --ag-cell-border-color: rgb(229 231 235 / 0.1);
+
+  /* Typography */
   font-family: "JetBrains Mono", monospace;
-}
-
-.ag-theme-quartz .ag-header {
-  background-color: rgb(23 23 23 / 0.95);
-  border-bottom: 1px solid rgb(229 231 235 / 0.2);
-}
-
-.ag-theme-quartz .ag-header-cell {
-  color: rgb(161 161 170);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  border-right: 1px solid rgb(229 231 235 / 0.2);
-  padding: 8px 12px;
-  line-height: 16px;
-}
-
-.ag-theme-quartz .ag-cell {
-  border-right: 1px solid rgb(229 231 235 / 0.1);
-  border-bottom: 1px solid rgb(229 231 235 / 0.1);
-  padding: 8px 12px;
   font-size: 0.75rem;
-  line-height: 1.25rem;
+
+  /* Spacing */
+  --ag-row-height: 28px;
 }
 
-.ag-theme-quartz .ag-row {
-  background-color: transparent;
-  border-bottom: 1px solid rgb(229 231 235 / 0.1);
-}
-
-.ag-theme-quartz .ag-row:nth-child(odd) {
-  background-color: rgb(63 63 70 / 0.08);
-}
-
-.ag-theme-quartz .ag-row:hover {
-  background-color: rgb(63 63 70 / 0.15) !important;
-}
-
-.ag-theme-quartz .ag-root-wrapper {
-  border: 1px solid rgb(229 231 235 / 0.2);
+/* Override ag-grid body wrapper height */
+.ag-theme-quartz .ag-root-wrapper-body.ag-layout-normal {
+  height: 100%;
 }
 
 /* Scrollbar styling */
