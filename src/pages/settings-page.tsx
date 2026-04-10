@@ -121,13 +121,13 @@ export function SettingsPage() {
       )}
 
       {success && (
-        <Card className="ring-0 border border-green-600 text-green-600 text-sm px-3 py-2 mb-4">
+        <Card className="ring-0 border border-roygbiv-green border-l-4 border-l-roygbiv-green text-roygbiv-green text-sm px-3 py-2 mb-4 bg-roygbiv-green-muted">
           Settings saved successfully!
         </Card>
       )}
 
       <div className="space-y-4">
-        <div>
+        <div className="border-l-4 border-l-roygbiv-blue bg-roygbiv-blue-muted p-3 rounded-none">
           <label className="block text-sm font-medium text-foreground mb-2">
             Valheim Mods Path
           </label>
@@ -155,7 +155,7 @@ export function SettingsPage() {
           </p>
         </div>
 
-        <div>
+        <div className="border-l-4 border-l-roygbiv-violet bg-roygbiv-violet-muted p-3 rounded-none">
           <label className="block text-sm font-medium text-foreground mb-2">
             Default Profile
           </label>

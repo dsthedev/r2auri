@@ -179,9 +179,21 @@ export function ProfilesPage({
                 </div>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-auto space-y-2 pt-4">
-                {sortedProfiles.map((profile) => {
+                {sortedProfiles.map((profile, idx) => {
                   const isDefault = profile === settings?.default_profile;
                   const isSelected = profile === selectedProfile;
+                  const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet'] as const;
+                  const colorIdx = idx % colors.length;
+                  const color = colors[colorIdx];
+                  const colorVars = {
+                    red: 'border-roygbiv-red/40 bg-roygbiv-red-muted',
+                    orange: 'border-roygbiv-orange/40 bg-roygbiv-orange-muted',
+                    yellow: 'border-roygbiv-yellow/40 bg-roygbiv-yellow-muted',
+                    green: 'border-roygbiv-green/40 bg-roygbiv-green-muted',
+                    blue: 'border-roygbiv-blue/40 bg-roygbiv-blue-muted',
+                    indigo: 'border-roygbiv-indigo/40 bg-roygbiv-indigo-muted',
+                    violet: 'border-roygbiv-violet/40 bg-roygbiv-violet-muted',
+                  };
 
                   return (
                     <button
@@ -190,7 +202,7 @@ export function ProfilesPage({
                       className={`w-full border px-3 py-3 text-left transition-colors ${
                         isSelected
                           ? "border-primary bg-primary/10"
-                          : "border-border/70 bg-background/40 hover:bg-accent/40"
+                          : colorVars[color]
                       }`}
                       onClick={() => {
                         setSelectedProfile(profile);
@@ -223,49 +235,67 @@ export function ProfilesPage({
 
           <div className="min-h-0 flex-1 overflow-hidden">
             {selectedProfile ? (
-              <Card className="flex h-full min-h-0 flex-col border border-border/80 bg-card/80">
-                <CardHeader className="gap-2 border-b border-border/70">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-lg">{selectedProfile}</CardTitle>
-                      <CardDescription>
-                        Profile workspace for logs first, advanced config editing next.
-                      </CardDescription>
-                    </div>
+              (() => {
+                const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet'] as const;
+                const profileIdx = sortedProfiles.indexOf(selectedProfile);
+                const colorIdx = profileIdx >= 0 ? profileIdx % colors.length : 0;
+                const color = colors[colorIdx];
+                const colorBorders = {
+                  red: 'border-l-roygbiv-red',
+                  orange: 'border-l-roygbiv-orange',
+                  yellow: 'border-l-roygbiv-yellow',
+                  green: 'border-l-roygbiv-green',
+                  blue: 'border-l-roygbiv-blue',
+                  indigo: 'border-l-roygbiv-indigo',
+                  violet: 'border-l-roygbiv-violet',
+                };
 
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <GearSix size={16} />
-                      Managing profile content inside this workspace
-                    </div>
-                  </div>
-                </CardHeader>
+                return (
+                  <Card className={`flex h-full min-h-0 flex-col border border-border/80 bg-card/80 border-l-4 ${colorBorders[color]}`}>
+                    <CardHeader className="gap-2 border-b border-border/70">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg">{selectedProfile}</CardTitle>
+                          <CardDescription>
+                            Profile workspace for logs first, advanced config editing next.
+                          </CardDescription>
+                        </div>
 
-                <CardContent className="flex min-h-0 flex-1 flex-col pt-4">
-                  <Tabs defaultValue="log-output" className="flex min-h-0 flex-1 flex-col gap-4">
-                    <TabsList variant="line" className="w-full justify-start border-b border-border/70 pb-1">
-                      <TabsTrigger value="log-output" className="flex-none gap-2 px-2.5">
-                        <Scroll size={15} />
-                        Log Output
-                      </TabsTrigger>
-                      <TabsTrigger value="config-editor" className="flex-none gap-2 px-2.5">
-                        <Wrench size={15} />
-                        Config Editor
-                      </TabsTrigger>
-                    </TabsList>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <GearSix size={16} />
+                          Managing profile content inside this workspace
+                        </div>
+                      </div>
+                    </CardHeader>
 
-                    <TabsContent value="log-output" className="min-h-0 flex-1">
-                      <ProfileLogView
-                        modsPath={settings.valheim_mods_path}
-                        profile={selectedProfile}
-                      />
-                    </TabsContent>
+                    <CardContent className="flex min-h-0 flex-1 flex-col pt-4">
+                      <Tabs defaultValue="log-output" className="flex min-h-0 flex-1 flex-col gap-4">
+                        <TabsList variant="line" color={color} className="w-full justify-start border-b border-border/70 pb-1">
+                          <TabsTrigger value="log-output" className="flex-none gap-2 px-2.5">
+                            <Scroll size={15} />
+                            Log Output
+                          </TabsTrigger>
+                          <TabsTrigger value="config-editor" className="flex-none gap-2 px-2.5">
+                            <Wrench size={15} />
+                            Config Editor
+                          </TabsTrigger>
+                        </TabsList>
 
-                    <TabsContent value="config-editor" className="min-h-0 flex-1">
-                      <ConfigEditorTab />
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
+                        <TabsContent value="log-output" className="min-h-0 flex-1">
+                          <ProfileLogView
+                            modsPath={settings.valheim_mods_path}
+                            profile={selectedProfile}
+                          />
+                        </TabsContent>
+
+                        <TabsContent value="config-editor" className="min-h-0 flex-1">
+                          <ConfigEditorTab />
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                );
+              })()
             ) : (
               <Card className="flex h-full items-center justify-center border border-border/80 bg-card/80 p-8 text-sm text-muted-foreground">
                 Select a profile to begin.

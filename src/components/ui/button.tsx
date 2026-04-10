@@ -18,6 +18,13 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        red: "bg-roygbiv-red text-background hover:bg-roygbiv-red/80",
+        orange: "bg-roygbiv-orange text-background hover:bg-roygbiv-orange/80",
+        yellow: "bg-roygbiv-yellow text-background hover:bg-roygbiv-yellow/80",
+        green: "bg-roygbiv-green text-background hover:bg-roygbiv-green/80",
+        blue: "bg-roygbiv-blue text-background hover:bg-roygbiv-blue/80",
+        indigo: "bg-roygbiv-indigo text-background hover:bg-roygbiv-indigo/80",
+        violet: "bg-roygbiv-violet text-background hover:bg-roygbiv-violet/80",
       },
       size: {
         default:

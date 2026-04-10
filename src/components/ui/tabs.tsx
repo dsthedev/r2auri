@@ -31,9 +31,20 @@ const tabsListVariants = cva(
         default: "bg-muted",
         line: "gap-1 bg-transparent",
       },
+      color: {
+        none: "",
+        red: "bg-roygbiv-red-muted",
+        orange: "bg-roygbiv-orange-muted",
+        yellow: "bg-roygbiv-yellow-muted",
+        green: "bg-roygbiv-green-muted",
+        blue: "bg-roygbiv-blue-muted",
+        indigo: "bg-roygbiv-indigo-muted",
+        violet: "bg-roygbiv-violet-muted",
+      },
     },
     defaultVariants: {
       variant: "default",
+      color: "none",
     },
   }
 )
@@ -41,13 +52,15 @@ const tabsListVariants = cva(
 function TabsList({
   className,
   variant = "default",
+  color = "none",
   ...props
 }: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      data-color={color}
+      className={cn(tabsListVariants({ variant, color }), className)}
       {...props}
     />
   )

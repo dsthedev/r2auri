@@ -26,6 +26,20 @@
   --color-ring:                 var(--ring);
   --color-sidebar:              var(--sidebar);
   --color-sidebar-foreground:   var(--sidebar-foreground);
+  --color-roygbiv-red:          var(--roygbiv-red);
+  --color-roygbiv-orange:       var(--roygbiv-orange);
+  --color-roygbiv-yellow:       var(--roygbiv-yellow);
+  --color-roygbiv-green:        var(--roygbiv-green);
+  --color-roygbiv-blue:         var(--roygbiv-blue);
+  --color-roygbiv-indigo:       var(--roygbiv-indigo);
+  --color-roygbiv-violet:       var(--roygbiv-violet);
+  --color-roygbiv-red-muted:    var(--roygbiv-red-muted);
+  --color-roygbiv-orange-muted: var(--roygbiv-orange-muted);
+  --color-roygbiv-yellow-muted: var(--roygbiv-yellow-muted);
+  --color-roygbiv-green-muted:  var(--roygbiv-green-muted);
+  --color-roygbiv-blue-muted:   var(--roygbiv-blue-muted);
+  --color-roygbiv-indigo-muted: var(--roygbiv-indigo-muted);
+  --color-roygbiv-violet-muted: var(--roygbiv-violet-muted);
   --radius-sm:   calc(var(--radius) - 4px);
   --radius-md:   calc(var(--radius) - 2px);
   --radius-lg:   var(--radius);
@@ -83,6 +97,24 @@
   --border:               oklch(0.27 0.008 262);
   --input:                oklch(0.27 0.008 262);
   --ring:                 oklch(0.72 0.14 72);
+
+  /* ROYGBIV Color System */
+  --roygbiv-red:          oklch(0.55 0.19 30);
+  --roygbiv-orange:       oklch(0.58 0.16 60);
+  --roygbiv-yellow:       oklch(0.72 0.15 100);
+  --roygbiv-green:        oklch(0.55 0.14 140);
+  --roygbiv-blue:         oklch(0.55 0.15 260);
+  --roygbiv-indigo:       oklch(0.50 0.14 280);
+  --roygbiv-violet:       oklch(0.55 0.14 310);
+
+  /* ROYGBIV Muted backgrounds (high transparency) */
+  --roygbiv-red-muted:    oklch(0.30 0.06 30 / 0.15);
+  --roygbiv-orange-muted: oklch(0.35 0.05 60 / 0.15);
+  --roygbiv-yellow-muted: oklch(0.40 0.05 100 / 0.12);
+  --roygbiv-green-muted:  oklch(0.32 0.05 140 / 0.15);
+  --roygbiv-blue-muted:   oklch(0.32 0.05 260 / 0.15);
+  --roygbiv-indigo-muted: oklch(0.28 0.05 280 / 0.15);
+  --roygbiv-violet-muted: oklch(0.32 0.05 310 / 0.15);
 }
 
 html, body, #root {

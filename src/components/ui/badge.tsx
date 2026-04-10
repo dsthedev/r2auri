@@ -19,6 +19,13 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        red: "bg-roygbiv-red text-background [a]:hover:bg-roygbiv-red/80",
+        orange: "bg-roygbiv-orange text-background [a]:hover:bg-roygbiv-orange/80",
+        yellow: "bg-roygbiv-yellow text-background [a]:hover:bg-roygbiv-yellow/80",
+        green: "bg-roygbiv-green text-background [a]:hover:bg-roygbiv-green/80",
+        blue: "bg-roygbiv-blue text-background [a]:hover:bg-roygbiv-blue/80",
+        indigo: "bg-roygbiv-indigo text-background [a]:hover:bg-roygbiv-indigo/80",
+        violet: "bg-roygbiv-violet text-background [a]:hover:bg-roygbiv-violet/80",
       },
     },
     defaultVariants: {
