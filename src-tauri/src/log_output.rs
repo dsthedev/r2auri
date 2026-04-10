@@ -38,6 +38,11 @@ impl Default for TailSessionRegistry {
     }
 }
 
+/// Pre-filter stage: Remove empty lines and other noise from raw log data
+fn should_include_line(raw_line: &str) -> bool {
+    !raw_line.trim().is_empty()
+}
+
 /// Get a paginated chunk of log lines. Loads from the END of the file (most recent first).
 /// offset=0 gets the most recent lines, offset=500 skips the first 500 recent lines, etc.
 pub fn get_profile_log_snapshot(base_path: &Path, profile: &str) -> Result<ProfileLogSnapshot, String> {
@@ -57,11 +62,13 @@ pub fn get_profile_log_snapshot_paginated(
     let file = File::open(&log_path).map_err(|e| e.to_string())?;
     let reader = BufReader::new(file);
 
-    // First pass: count total lines and collect them in reverse
+    // First pass: count total lines and collect them in reverse (with pre-filtering applied)
     let mut all_lines: Vec<String> = Vec::new();
     for line in reader.lines() {
         let raw = line.map_err(|e| e.to_string())?;
-        all_lines.push(raw);
+        if should_include_line(&raw) {
+            all_lines.push(raw);
+        }
     }
 
     let total_lines = all_lines.len();

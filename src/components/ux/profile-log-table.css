@@ -1,0 +1,67 @@
+/* ag-grid legacy theme customizations to match app dark theme */
+
+.ag-theme-quartz {
+  background-color: rgb(13 13 13 / 0.5);
+  color: rgb(250 250 250 / 0.9);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.ag-theme-quartz .ag-header {
+  background-color: rgb(23 23 23 / 0.95);
+  border-bottom: 1px solid rgb(229 231 235 / 0.2);
+}
+
+.ag-theme-quartz .ag-header-cell {
+  color: rgb(161 161 170);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-right: 1px solid rgb(229 231 235 / 0.2);
+  padding: 8px 12px;
+  line-height: 16px;
+}
+
+.ag-theme-quartz .ag-cell {
+  border-right: 1px solid rgb(229 231 235 / 0.1);
+  border-bottom: 1px solid rgb(229 231 235 / 0.1);
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+.ag-theme-quartz .ag-row {
+  background-color: transparent;
+  border-bottom: 1px solid rgb(229 231 235 / 0.1);
+}
+
+.ag-theme-quartz .ag-row:nth-child(odd) {
+  background-color: rgb(63 63 70 / 0.08);
+}
+
+.ag-theme-quartz .ag-row:hover {
+  background-color: rgb(63 63 70 / 0.15) !important;
+}
+
+.ag-theme-quartz .ag-root-wrapper {
+  border: 1px solid rgb(229 231 235 / 0.2);
+}
+
+/* Scrollbar styling */
+.ag-theme-quartz::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ag-theme-quartz::-webkit-scrollbar-track {
+  background: rgb(63 63 70 / 0.1);
+}
+
+.ag-theme-quartz::-webkit-scrollbar-thumb {
+  background: rgb(113 113 122 / 0.5);
+  border-radius: 4px;
+}
+
+.ag-theme-quartz::-webkit-scrollbar-thumb:hover {
+  background: rgb(113 113 122 / 0.8);
+}

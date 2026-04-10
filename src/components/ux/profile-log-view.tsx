@@ -23,7 +23,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -39,6 +38,7 @@ import type {
 } from "@/types/profile-log";
 import type { SmartPatternId } from "@/types/smart-patterns";
 import { DEFAULT_SMART_PATTERNS } from "@/types/smart-patterns";
+import { ProfileLogTable } from "./profile-log-table";
 
 const MIN_TAIL_HEIGHT = 180;
 const MAX_TAIL_HEIGHT = 420;
@@ -909,47 +909,9 @@ export function ProfileLogView({
           )}
 
           {!loadingSnapshot && snapshot && (
-            <ScrollArea className="h-168 min-h-0 flex-1 border border-border/70 bg-background/50">
-              <table className="min-w-full border-separate border-spacing-0 text-sm">
-                <thead className="sticky top-0 z-10 bg-card/95 text-left">
-                  <tr className="border-b border-border/70 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    <th className="w-20 border-b border-border/70 px-3 py-2 font-medium">
-                      Line
-                    </th>
-                    <th className="w-32 border-b border-border/70 px-3 py-2 font-medium">
-                      Level
-                    </th>
-                    <th className="w-48 border-b border-border/70 px-3 py-2 font-medium">
-                      Source
-                    </th>
-                    <th className="border-b border-border/70 px-3 py-2 font-medium">
-                      Message
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLines.map((line) => (
-                    <tr
-                      key={line.lineNumber}
-                      className="align-top odd:bg-muted/10"
-                    >
-                      <td className="border-b border-border/40 px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {line.lineNumber}
-                      </td>
-                      <td className="border-b border-border/40 px-3 py-2">
-                        <LevelBadge level={line.level} />
-                      </td>
-                      <td className="border-b border-border/40 px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {line.source || "-"}
-                      </td>
-                      <td className="border-b border-border/40 px-3 py-2 font-mono text-xs leading-5 text-foreground/90">
-                        {line.message || line.raw}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollArea>
+            <div className="h-full min-h-0 flex-1 border border-border/70 bg-background/50 overflow-hidden">
+              <ProfileLogTable lines={filteredLines} />
+            </div>
           )}
         </div>
       </AccordionSection>
@@ -1278,34 +1240,4 @@ function getIsNearBottom(element: HTMLDivElement) {
   const remaining =
     element.scrollHeight - element.scrollTop - element.clientHeight;
   return remaining <= TAIL_BOTTOM_THRESHOLD_PX;
-}
-
-function LevelBadge({ level }: { level: string }) {
-  const normalizedLevel = level.trim().toLowerCase();
-
-  if (!normalizedLevel) {
-    return <Badge variant="outline">raw</Badge>;
-  }
-
-  if (normalizedLevel.startsWith("message")) {
-    return <Badge variant="secondary">{level.trim()}</Badge>;
-  }
-
-  if (normalizedLevel.startsWith("error")) {
-    return <Badge variant="destructive">{level.trim()}</Badge>;
-  }
-
-  if (normalizedLevel.startsWith("warning")) {
-    return (
-      <Badge variant="secondary" className="bg-amber-500/15 text-amber-300">
-        {level.trim()}
-      </Badge>
-    );
-  }
-
-  if (normalizedLevel.startsWith("info")) {
-    return <Badge variant="outline">{level.trim()}</Badge>;
-  }
-
-  return <Badge variant="outline">{level.trim()}</Badge>;
 }
