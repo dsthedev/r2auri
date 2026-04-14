@@ -98,3 +98,19 @@ pub struct ProfileConfigIndex {
     pub mods: Vec<ModConfigGroup>,
     pub unlinked: Vec<LinkedConfigFile>,
 }
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FeatureConfigStatus {
+    pub key: String,
+    pub found: bool,
+    pub file_path: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileFeatureAvailability {
+    pub profile: String,
+    pub level_settings: FeatureConfigStatus,
+    pub wacky_spawners: FeatureConfigStatus,
+}

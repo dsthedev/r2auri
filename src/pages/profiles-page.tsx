@@ -15,9 +15,11 @@ import type { ProfileConfigIndex } from "@/types/config-index";
 export function ProfilesPage({
   onNavigateToSettings,
   profileSheetRequestKey,
+  onSelectedProfileChange,
 }: {
   onNavigateToSettings: () => void;
   profileSheetRequestKey: number;
+  onSelectedProfileChange?: (profile: string) => void;
 }) {
   const { settings, loading: settingsLoading } = useSettings();
   const [profiles, setProfiles] = useState<string[]>([]);
@@ -68,6 +70,14 @@ export function ProfilesPage({
   useEffect(() => {
     setProfileSheetOpen(true);
   }, [profileSheetRequestKey]);
+
+  useEffect(() => {
+    if (!selectedProfile) {
+      return;
+    }
+
+    onSelectedProfileChange?.(selectedProfile);
+  }, [onSelectedProfileChange, selectedProfile]);
 
   // Sort profiles with default at the top
   const sortedProfiles = [

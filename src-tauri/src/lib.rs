@@ -3,12 +3,13 @@ mod log_output;
 mod models;
 mod profile;
 mod config_index;
+mod feature_detection;
 mod readme;
 mod settings;
 mod utils;
 
 use std::path::PathBuf;
-use models::{AppSettings, ModEntry, ProfileConfigIndex, ProfileLogSnapshot, TailChunk, TailSessionStart};
+use models::{AppSettings, ModEntry, ProfileConfigIndex, ProfileFeatureAvailability, ProfileLogSnapshot, TailChunk, TailSessionStart};
 use log_output::TailSessionRegistry;
 
 #[tauri::command]
@@ -46,6 +47,12 @@ fn get_profile_mods(mods_path: String, profile: String) -> Result<Vec<ModEntry>,
 fn get_profile_config_index(mods_path: String, profile: String) -> Result<ProfileConfigIndex, String> {
     let base_path = PathBuf::from(&mods_path);
     config_index::build_profile_config_index(&base_path, &profile)
+}
+
+#[tauri::command]
+fn get_profile_feature_availability(mods_path: String, profile: String) -> Result<ProfileFeatureAvailability, String> {
+    let base_path = PathBuf::from(&mods_path);
+    feature_detection::detect_profile_feature_configs(&base_path, &profile)
 }
 
 #[tauri::command]
@@ -131,6 +138,7 @@ pub fn run() {
             list_profiles,
             get_profile_mods,
             get_profile_config_index,
+            get_profile_feature_availability,
             get_app_readme,
             get_mod_readme,
             get_profile_log_snapshot,
