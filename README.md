@@ -76,9 +76,9 @@ Recommended workflow:
 
 ## Build For Linux
 
-These instructions are for Linux (your current platform).
+These instructions are for Linux (the best platform).
 
-1. Install system dependencies (example for Debian/Ubuntu):
+1. Install system dependencies:
 
 ```bash
 sudo apt update
@@ -120,7 +120,11 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
+Build platform is controlled by the bundle>targets field in `tauri.conf.json`
+
 Build output is generated under `src-tauri/target/release/bundle`.
+
+See the Tauri docs for [building for other platforms](https://tauri.app/distribute/)
 
 ## Status
 

@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "r2auri",
   "version": "0.1.0",
-  "identifier": "com.darren.r2auri",
+  "identifier": "com.d11z.r2auri",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
