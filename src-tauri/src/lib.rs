@@ -5,12 +5,14 @@ mod profile;
 mod config_index;
 mod feature_detection;
 mod level_settings;
+mod spawner_config;
 mod readme;
 mod settings;
 mod utils;
 
 use std::path::PathBuf;
-use models::{AppSettings, LevelSettingsDocument, LevelSpreadEntry, ModEntry, ProfileConfigIndex, ProfileFeatureAvailability, ProfileLogSnapshot, TailChunk, TailSessionStart};
+use models::{AppSettings, LevelSettingsDocument, LevelSpreadEntry, ModEntry, ProfileConfigIndex, ProfileFeatureAvailability, ProfileLogSnapshot, SpawnerConfigDocument, TailChunk, TailSessionStart};
+use serde_json::Value as JsonValue;
 use log_output::TailSessionRegistry;
 
 #[tauri::command]
@@ -70,6 +72,23 @@ fn save_level_settings(
 ) -> Result<(), String> {
     let path = PathBuf::from(&config_path);
     level_settings::save_level_settings_with_algorithm(&path, &entries, algorithm_comment.as_deref())
+}
+
+#[tauri::command]
+fn read_spawner_config(config_path: String) -> Result<SpawnerConfigDocument, String> {
+    let path = PathBuf::from(&config_path);
+    spawner_config::read_spawner_config(&path)
+}
+
+#[tauri::command]
+fn save_spawner_config(config_path: String, spawners: Vec<JsonValue>) -> Result<(), String> {
+    let path = PathBuf::from(&config_path);
+    spawner_config::save_spawner_config(&path, &spawners)
+}
+
+#[tauri::command]
+fn render_spawner_config_yaml(spawners: Vec<JsonValue>) -> Result<String, String> {
+    spawner_config::render_spawner_config(&spawners)
 }
 
 #[tauri::command]
@@ -158,6 +177,9 @@ pub fn run() {
             get_profile_feature_availability,
             read_level_settings,
             save_level_settings,
+            read_spawner_config,
+            save_spawner_config,
+            render_spawner_config_yaml,
             get_app_readme,
             get_mod_readme,
             get_profile_log_snapshot,

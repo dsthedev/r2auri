@@ -143,10 +143,10 @@ function AppContent() {
             </SelectTrigger>
             <SelectContent>
               {featureAvailability?.levelSettings.found && (
-                <SelectItem value="level-spread">Level Spread</SelectItem>
+                <SelectItem value="level-spread">SLS Levels</SelectItem>
               )}
               {featureAvailability?.wackySpawners.found && (
-                <SelectItem value="spawner-manager">Spawner Manager</SelectItem>
+                <SelectItem value="spawner-manager">Wacky Spawners</SelectItem>
               )}
               {!hasFeatureOptions && (
                 <SelectItem value="none" disabled>

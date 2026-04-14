@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VersionNumber {
@@ -55,6 +56,13 @@ pub struct LevelSettingsDocument {
     pub file_path: String,
     pub algorithm_comment: Option<String>,
     pub entries: Vec<LevelSpreadEntry>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnerConfigDocument {
+    pub file_path: String,
+    pub spawners: Vec<JsonValue>,
 }
 
 #[derive(Serialize, Debug, Clone)]
