@@ -4,12 +4,13 @@ mod models;
 mod profile;
 mod config_index;
 mod feature_detection;
+mod level_settings;
 mod readme;
 mod settings;
 mod utils;
 
 use std::path::PathBuf;
-use models::{AppSettings, ModEntry, ProfileConfigIndex, ProfileFeatureAvailability, ProfileLogSnapshot, TailChunk, TailSessionStart};
+use models::{AppSettings, LevelSettingsDocument, LevelSpreadEntry, ModEntry, ProfileConfigIndex, ProfileFeatureAvailability, ProfileLogSnapshot, TailChunk, TailSessionStart};
 use log_output::TailSessionRegistry;
 
 #[tauri::command]
@@ -53,6 +54,22 @@ fn get_profile_config_index(mods_path: String, profile: String) -> Result<Profil
 fn get_profile_feature_availability(mods_path: String, profile: String) -> Result<ProfileFeatureAvailability, String> {
     let base_path = PathBuf::from(&mods_path);
     feature_detection::detect_profile_feature_configs(&base_path, &profile)
+}
+
+#[tauri::command]
+fn read_level_settings(config_path: String) -> Result<LevelSettingsDocument, String> {
+    let path = PathBuf::from(&config_path);
+    level_settings::read_level_settings(&path)
+}
+
+#[tauri::command]
+fn save_level_settings(
+    config_path: String,
+    entries: Vec<LevelSpreadEntry>,
+    algorithm_comment: Option<String>,
+) -> Result<(), String> {
+    let path = PathBuf::from(&config_path);
+    level_settings::save_level_settings_with_algorithm(&path, &entries, algorithm_comment.as_deref())
 }
 
 #[tauri::command]
@@ -139,6 +156,8 @@ pub fn run() {
             get_profile_mods,
             get_profile_config_index,
             get_profile_feature_availability,
+            read_level_settings,
+            save_level_settings,
             get_app_readme,
             get_mod_readme,
             get_profile_log_snapshot,

@@ -36,7 +36,10 @@ import type {
   TailChunk,
   TailSessionStart,
 } from "@/types/profile-log";
-import type { SmartPatternId, SmartPatternMetadata } from "@/types/smart-patterns";
+import type {
+  SmartPatternId,
+  SmartPatternMetadata,
+} from "@/types/smart-patterns";
 import { DEFAULT_SMART_PATTERNS, mergePatterns } from "@/types/smart-patterns";
 import { useSettings } from "@/hooks/use-settings";
 import { ProfileLogTable } from "./profile-log-table";
@@ -110,7 +113,7 @@ export function ProfileLogView({
 
   // Build dynamic pattern ID set including custom patterns for validation
   const validPatternIdSet = useMemo(() => {
-    const allPatternIds = allPatterns.map(p => p.id);
+    const allPatternIds = allPatterns.map((p) => p.id);
     return new Set<SmartPatternId>(allPatternIds);
   }, [allPatterns]);
 
@@ -280,7 +283,10 @@ export function ProfileLogView({
 
   const lines = snapshot?.lines ?? [];
 
-  const smartPatternAnalysis = useMemo(() => analyzeSmartPatterns(lines, allPatterns), [lines, allPatterns]);
+  const smartPatternAnalysis = useMemo(
+    () => analyzeSmartPatterns(lines, allPatterns),
+    [lines, allPatterns],
+  );
 
   const patternFilteredLines = useMemo(() => {
     const focusedPatternId = filterState.focusedPatternId;
@@ -296,14 +302,21 @@ export function ProfileLogView({
     if (filterState.hiddenPatternIds.length === 0) return lines;
 
     return lines.filter((line) => {
-      const patternIds = smartPatternAnalysis.linePatternMap.get(line.lineNumber);
+      const patternIds = smartPatternAnalysis.linePatternMap.get(
+        line.lineNumber,
+      );
       if (!patternIds) return true;
 
       return !filterState.hiddenPatternIds.some((patternId) =>
         patternIds.has(patternId),
       );
     });
-  }, [filterState.focusedPatternId, filterState.hiddenPatternIds, lines, smartPatternAnalysis.linePatternMap]);
+  }, [
+    filterState.focusedPatternId,
+    filterState.hiddenPatternIds,
+    lines,
+    smartPatternAnalysis.linePatternMap,
+  ]);
 
   const searchFilteredLines = useMemo(() => {
     if (!searchNeedle) return patternFilteredLines;
@@ -443,7 +456,9 @@ export function ProfileLogView({
     setFilterState((current) => ({
       ...current,
       focusedPatternId:
-        current.focusedPatternId === patternId ? null : current.focusedPatternId,
+        current.focusedPatternId === patternId
+          ? null
+          : current.focusedPatternId,
       hiddenPatternIds: current.hiddenPatternIds.includes(patternId)
         ? current.hiddenPatternIds.filter((id) => id !== patternId)
         : [...current.hiddenPatternIds, patternId],
@@ -453,7 +468,9 @@ export function ProfileLogView({
   const focusPattern = (patternId: SmartPatternId) => {
     setFilterState((current) => ({
       ...current,
-      hiddenPatternIds: current.hiddenPatternIds.filter((id) => id !== patternId),
+      hiddenPatternIds: current.hiddenPatternIds.filter(
+        (id) => id !== patternId,
+      ),
       focusedPatternId:
         current.focusedPatternId === patternId ? null : patternId,
     }));
@@ -515,13 +532,16 @@ export function ProfileLogView({
 
   const handleAddCustomPattern = async (pattern: SmartPatternMetadata) => {
     if (!settings) return;
-    
-    const updatedPatterns = [...(settings.custom_smart_patterns ?? []), pattern];
+
+    const updatedPatterns = [
+      ...(settings.custom_smart_patterns ?? []),
+      pattern,
+    ];
     const updatedSettings = {
       ...settings,
       custom_smart_patterns: updatedPatterns,
     };
-    
+
     try {
       await updateSettings(updatedSettings);
     } catch (err) {
@@ -532,81 +552,6 @@ export function ProfileLogView({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <AccordionSection
-        title="Live Tail"
-        description="Shell-backed live stream for new log lines. Expanding the section does not start streaming by itself."
-        isOpen={openSection === "tail"}
-        onToggle={() =>
-          setOpenSection((current) => (current === "tail" ? null : "tail"))
-        }
-        headerContent={
-          <Badge
-            variant={tailStatus === "running" ? "default" : "outline"}
-            className="gap-1"
-          >
-            <Pulse size={10} weight="fill" />
-            {tailStatus}
-          </Badge>
-        }
-      >
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>Shell: {tailShell || "idle"}</span>
-              <span className="max-w-full truncate">
-                {tailCommand || "No live tail process running"}
-              </span>
-            </div>
-
-            <Button
-              type="button"
-              variant={tailEnabled ? "secondary" : "outline"}
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setTailEnabled((current) => !current)}
-            >
-              {tailEnabled ? <CaretDown size={14} /> : <CaretRight size={14} />}
-              {tailEnabled ? "Hide Tail Output" : "Show Live Tail"}
-            </Button>
-          </div>
-
-          {tailError && (
-            <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {tailError}
-            </div>
-          )}
-
-          {tailEnabled ? (
-            <div className="overflow-hidden border border-border/70 bg-background/70">
-              <div
-                aria-hidden="true"
-                className="h-3 cursor-row-resize border-b border-border/70 bg-muted/40"
-                onPointerDown={handleResizeStart}
-              />
-              <div
-                ref={tailViewportRef}
-                className="w-full overflow-auto"
-                style={{ height: `${tailHeight}px` }}
-                onScroll={handleTailScroll}
-              >
-                <pre className="min-h-full px-3 py-2 font-mono text-xs leading-5 text-foreground/90 whitespace-pre-wrap wrap-break-word">
-                  {tailLines.length > 0
-                    ? tailLines.join("\n")
-                    : tailStatus === "connecting"
-                      ? "Starting tail session..."
-                      : "Waiting for fresh log lines..."}
-                </pre>
-              </div>
-            </div>
-          ) : (
-            <div className="border border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
-              Tail is idle. Open it when you want a streaming view without
-              reloading the snapshot table.
-            </div>
-          )}
-        </div>
-      </AccordionSection>
-
       <AccordionSection
         title="Snapshot"
         description="Current LogOutput.log state with filters applied to the table below."
@@ -636,7 +581,8 @@ export function ProfileLogView({
                   Smart Patterns
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Repeated noise candidates detected from this log. Hide them to reduce junk, or focus one to inspect it directly.
+                  Repeated noise candidates detected from this log. Hide them to
+                  reduce junk, or focus one to inspect it directly.
                 </p>
               </div>
 
@@ -692,66 +638,85 @@ export function ProfileLogView({
             </div>
 
             {smartPatternAnalysis.patterns.length > 0 && (
-              <Collapsible open={patternsExpanded} onOpenChange={setPatternsExpanded}>
+              <Collapsible
+                open={patternsExpanded}
+                onOpenChange={setPatternsExpanded}
+              >
                 <CollapsibleTrigger className="flex items-center gap-2 py-2 text-sm font-medium text-foreground hover:text-primary w-full">
-                  {patternsExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
-                  View {smartPatternAnalysis.patterns.length} Pattern{smartPatternAnalysis.patterns.length !== 1 ? "s" : ""}
+                  {patternsExpanded ? (
+                    <CaretDown size={16} />
+                  ) : (
+                    <CaretRight size={16} />
+                  )}
+                  View {smartPatternAnalysis.patterns.length} Pattern
+                  {smartPatternAnalysis.patterns.length !== 1 ? "s" : ""}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-              <div className="grid gap-3 xl:grid-cols-2 mt-3">
-                {smartPatternAnalysis.patterns.map((pattern) => {
-                  const isHidden = filterState.hiddenPatternIds.includes(pattern.id);
-                  const isFocused = filterState.focusedPatternId === pattern.id;
+                  <div className="grid gap-3 xl:grid-cols-2 mt-3">
+                    {smartPatternAnalysis.patterns.map((pattern) => {
+                      const isHidden = filterState.hiddenPatternIds.includes(
+                        pattern.id,
+                      );
+                      const isFocused =
+                        filterState.focusedPatternId === pattern.id;
 
-                  return (
-                    <div
-                      key={pattern.id}
-                      className={`border p-3 transition-colors ${
-                        isFocused
-                          ? "border-primary bg-primary/10"
-                          : isHidden
-                            ? "border-border/70 bg-background/30 opacity-75"
-                            : "border-border/70 bg-background/50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-foreground">{pattern.title}</p>
-                            <Badge variant="outline">{pattern.count} lines</Badge>
-                            {isFocused && <Badge>focused</Badge>}
-                            {isHidden && <Badge variant="secondary">hidden</Badge>}
+                      return (
+                        <div
+                          key={pattern.id}
+                          className={`border p-3 transition-colors ${
+                            isFocused
+                              ? "border-primary bg-primary/10"
+                              : isHidden
+                                ? "border-border/70 bg-background/30 opacity-75"
+                                : "border-border/70 bg-background/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium text-foreground">
+                                  {pattern.title}
+                                </p>
+                                <Badge variant="outline">
+                                  {pattern.count} lines
+                                </Badge>
+                                {isFocused && <Badge>focused</Badge>}
+                                {isHidden && (
+                                  <Badge variant="secondary">hidden</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {pattern.description}
+                              </p>
+                            </div>
+
+                            <div className="flex shrink-0 gap-2">
+                              <Button
+                                type="button"
+                                variant={isFocused ? "secondary" : "outline"}
+                                size="sm"
+                                onClick={() => focusPattern(pattern.id)}
+                              >
+                                {isFocused ? "Show All" : "Only Show"}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={isHidden ? "secondary" : "outline"}
+                                size="sm"
+                                onClick={() => toggleHiddenPattern(pattern.id)}
+                              >
+                                {isHidden ? "Unhide" : "Hide"}
+                              </Button>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground">{pattern.description}</p>
-                        </div>
 
-                        <div className="flex shrink-0 gap-2">
-                          <Button
-                            type="button"
-                            variant={isFocused ? "secondary" : "outline"}
-                            size="sm"
-                            onClick={() => focusPattern(pattern.id)}
-                          >
-                            {isFocused ? "Show All" : "Only Show"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={isHidden ? "secondary" : "outline"}
-                            size="sm"
-                            onClick={() => toggleHiddenPattern(pattern.id)}
-                          >
-                            {isHidden ? "Unhide" : "Hide"}
-                          </Button>
+                          <div className="mt-3 border border-border/60 bg-background/50 px-3 py-2 font-mono text-xs text-muted-foreground">
+                            [L{pattern.firstLineNumber}] {pattern.example}
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="mt-3 border border-border/60 bg-background/50 px-3 py-2 font-mono text-xs text-muted-foreground">
-                        [L{pattern.firstLineNumber}] {pattern.example}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
             )}
@@ -885,7 +850,11 @@ export function ProfileLogView({
               </span>
               <span>
                 Search: {searchNeedle ? "active" : "off"} | Source:{" "}
-                {formatSourceLabel(filterState.sourceFilter)} | Levels: {formatLevelSmartState(filterState.focusedLevel, filterState.hiddenLevels)}
+                {formatSourceLabel(filterState.sourceFilter)} | Levels:{" "}
+                {formatLevelSmartState(
+                  filterState.focusedLevel,
+                  filterState.hiddenLevels,
+                )}
               </span>
             </div>
           </div>
@@ -905,7 +874,10 @@ export function ProfileLogView({
           )}
 
           {!loadingSnapshot && snapshot && (
-            <div className="border border-border/70 bg-background/50 overflow-hidden" style={{ height: "50vh", maxHeight: "50vh" }}>
+            <div
+              className="border border-border/70 bg-background/50 overflow-hidden"
+              style={{ height: "50vh", maxHeight: "50vh" }}
+            >
               <ProfileLogTable lines={filteredLines} />
             </div>
           )}
@@ -913,6 +885,80 @@ export function ProfileLogView({
           {!loadingSnapshot && snapshot && (
             <div className="pt-4">
               <QuickAddPattern onAddPattern={handleAddCustomPattern} />
+            </div>
+          )}
+        </div>
+      </AccordionSection>
+      <AccordionSection
+        title="Live Tail"
+        description="Shell-backed live stream for new log lines. Expanding the section does not start streaming by itself."
+        isOpen={openSection === "tail"}
+        onToggle={() =>
+          setOpenSection((current) => (current === "tail" ? null : "tail"))
+        }
+        headerContent={
+          <Badge
+            variant={tailStatus === "running" ? "default" : "outline"}
+            className="gap-1"
+          >
+            <Pulse size={10} weight="fill" />
+            {tailStatus}
+          </Badge>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span>Shell: {tailShell || "idle"}</span>
+              <span className="max-w-full truncate">
+                {tailCommand || "No live tail process running"}
+              </span>
+            </div>
+
+            <Button
+              type="button"
+              variant={tailEnabled ? "secondary" : "outline"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setTailEnabled((current) => !current)}
+            >
+              {tailEnabled ? <CaretDown size={14} /> : <CaretRight size={14} />}
+              {tailEnabled ? "Hide Tail Output" : "Show Live Tail"}
+            </Button>
+          </div>
+
+          {tailError && (
+            <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {tailError}
+            </div>
+          )}
+
+          {tailEnabled ? (
+            <div className="overflow-hidden border border-border/70 bg-background/70">
+              <div
+                aria-hidden="true"
+                className="h-3 cursor-row-resize border-b border-border/70 bg-muted/40"
+                onPointerDown={handleResizeStart}
+              />
+              <div
+                ref={tailViewportRef}
+                className="w-full overflow-auto"
+                style={{ height: `${tailHeight}px` }}
+                onScroll={handleTailScroll}
+              >
+                <pre className="min-h-full px-3 py-2 font-mono text-xs leading-5 text-foreground/90 whitespace-pre-wrap wrap-break-word">
+                  {tailLines.length > 0
+                    ? tailLines.join("\n")
+                    : tailStatus === "connecting"
+                      ? "Starting tail session..."
+                      : "Waiting for fresh log lines..."}
+                </pre>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
+              Tail is idle. Open it when you want a streaming view without
+              reloading the snapshot table.
             </div>
           )}
         </div>
@@ -998,15 +1044,19 @@ function LevelSmartFilterButton({
     >
       <span>{label}</span>
       <span className="font-mono text-xs text-muted-foreground">{count}</span>
-      {mode === "focused" && <span className="text-[10px] uppercase tracking-wide">focus</span>}
-      {mode === "hidden" && <span className="text-[10px] uppercase tracking-wide">hide</span>}
+      {mode === "focused" && (
+        <span className="text-[10px] uppercase tracking-wide">focus</span>
+      )}
+      {mode === "hidden" && (
+        <span className="text-[10px] uppercase tracking-wide">hide</span>
+      )}
     </button>
   );
 }
 
 function analyzeSmartPatterns(
   lines: ProfileLogSnapshot["lines"],
-  patterns: SmartPatternMetadata[]
+  patterns: SmartPatternMetadata[],
 ) {
   const linePatternMap = new Map<number, Set<SmartPatternId>>();
 
@@ -1048,7 +1098,11 @@ function analyzeSmartPatterns(
       }
     }
 
-    if (message.includes("Desired shader compiler platform 18 is not available in shader blob")) {
+    if (
+      message.includes(
+        "Desired shader compiler platform 18 is not available in shader blob",
+      )
+    ) {
       addMatch(line.lineNumber, "shader-compiler-spam");
     }
 
@@ -1060,13 +1114,17 @@ function analyzeSmartPatterns(
       addMatch(line.lineNumber, "jotunn-init");
     }
 
-    if (source === "Unity Log" && /Loaded localization file #\d+/.test(message)) {
+    if (
+      source === "Unity Log" &&
+      /Loaded localization file #\d+/.test(message)
+    ) {
       addMatch(line.lineNumber, "unity-localization-flood");
     }
 
     if (
       source === "StarLevelSystem" &&
-      ((message.startsWith("Reading ") && message.includes("/localizations/")) ||
+      ((message.startsWith("Reading ") &&
+        message.includes("/localizations/")) ||
         message.startsWith("Added localization:"))
     ) {
       addMatch(line.lineNumber, "starlevel-localization-scan");
@@ -1123,11 +1181,15 @@ function truncateForCard(text: string) {
 
 function formatPatternLabel(patternId: SmartPatternId) {
   return (
-    DEFAULT_SMART_PATTERNS.find((pattern) => pattern.id === patternId)?.title ?? patternId
+    DEFAULT_SMART_PATTERNS.find((pattern) => pattern.id === patternId)?.title ??
+    patternId
   );
 }
 
-function formatLevelSmartState(focusedLevel: string | null, hiddenLevels: string[]) {
+function formatLevelSmartState(
+  focusedLevel: string | null,
+  hiddenLevels: string[],
+) {
   if (focusedLevel) return `focused(${focusedLevel})`;
   if (hiddenLevels.length > 0) return `hidden(${hiddenLevels.join(",")})`;
   return "all";
@@ -1148,7 +1210,10 @@ function getLogFilterStorageKey(modsPath: string, profile: string) {
   return `r2auri:log-filter-state:${modsPath}:${profile}`;
 }
 
-function loadFilterState(storageKey: string, validPatternIdSet?: Set<SmartPatternId>): LogFilterState {
+function loadFilterState(
+  storageKey: string,
+  validPatternIdSet?: Set<SmartPatternId>,
+): LogFilterState {
   const fallback = createDefaultFilterState();
 
   if (typeof window === "undefined") {

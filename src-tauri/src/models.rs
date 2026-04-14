@@ -42,6 +42,21 @@ pub struct AppSettings {
     pub default_profile: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelSpreadEntry {
+    pub level: u32,
+    pub value: f64,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelSettingsDocument {
+    pub file_path: String,
+    pub algorithm_comment: Option<String>,
+    pub entries: Vec<LevelSpreadEntry>,
+}
+
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileLogLine {
